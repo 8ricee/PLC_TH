@@ -1,0 +1,152 @@
+FUNCTION_BLOCK "FB_AnalogInput_Filter"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT 
+      i_RawValue : Int;   // Giá trị tín hiệu Analog thô từ PLC (0-27648)
+      i_MinScale : Real;   // Ngưỡng Scale dưới (Tương ứng với 4mA)
+      i_MaxScale : Real := 100.0;   // Ngưỡng Scale trên (Tương ứng 20mA)
+      i_FilterSize : Int;   // Số lượng mẫu dùng cho chế độ Sliding Average (Di chuyển trung bình)
+      i_FilterMode : Int;   // Chọn chế độ lọc (0=Moving Average mặc định, 1=IIR Low-Pass)
+      i_IIR_Alpha : Real := 0.1;   // Trọng số Alpha cho chế độ IIR (0.01 đến 0.99)
+   END_VAR
+
+   VAR_OUTPUT 
+      o_ScaledValue : Real;   // Giá trị thực đầu ra sau bộ lọc và scale
+      o_Error : Bool;   // Cờ báo lỗi Analog (Đứt dây < -200 hoặc ngắn mạch > 32511)
+   END_VAR
+
+   VAR 
+      stat_Buffer : Array[1..50] of Real;   // Bộ đệm 50 phần tử tĩnh dùng cho mảng Sliding Average
+      stat_Index : Int;   // Con trỏ vòng lặp của mảng Buffer
+      stat_Sum : Real;   // Tổng lưu trữ tức thời của mảng Buffer
+      stat_IIR_Output : Real;   // Output lưu vòng quét trước của chế độ lọc IIR
+      stat_IIR_Init : Bool;   // Cờ khởi tạo lần đọc IIR đầu tiên
+   END_VAR
+
+   VAR_TEMP 
+      temp_Norm : Real; // Giá trị chuẩn hóa (0.0 - 1.0)
+      temp_Scaled : Real; // Giá trị đã tỷ lệ (Physical Unit)
+      i : Int; // Biến chạy vòng lặp
+      temp_Limit : Int; // Giá trị giới hạn kích thước lọc
+      temp_Alpha : Real; // Hệ số Alpha sau khi kẹp (Clamp)
+   END_VAR
+
+
+BEGIN 
+	        REGION "HARDWARE_DIAGNOSTICS"
+	            // =============================================================
+	            // PHẦN 1: KIỂM TRA LỖI PHẦN CỨNG (HARDWARE DIAGNOSTICS) 
+	            // =============================================================
+	            // Nếu giá trị Raw vượt quá ngưỡng cho phép (Đứt dây hoặc Quá tải)
+	            IF (#i_RawValue > 32511) OR (#i_RawValue < -200) THEN
+	                #o_Error := TRUE;
+	                // #o_ScaledValue := 0.0;
+	                RETURN; // Thoát ngay, không tính toán nữa
+	            ELSE
+	                #o_Error := FALSE;
+	            END_IF;
+	        END_REGION
+	        
+	        REGION "SCALING"
+	            // =============================================================
+	            // PHẦN 2: CHUYỂN ĐỔI ĐƠN VỊ (SCALING)
+	            // =============================================================
+	            // Normalize: Int (0-27648) -> Real (0.0-1.0)
+	            #temp_Norm := NORM_X(MIN := 0, MAX := 27648, VALUE := #i_RawValue);
+	            
+	            // Scale: Real (0.0-1.0) -> Real (Min-Max)
+	            #temp_Scaled := SCALE_X(MIN := #i_MinScale, MAX := #i_MaxScale, VALUE := #temp_Norm);
+	        END_REGION
+	        
+	        // =============================================================
+	        // PHẦN 3: BỘ LỌC (FILTER) — Chọn theo i_FilterMode
+	        // =============================================================
+	        
+	        IF #i_FilterMode = 1 THEN
+	            // =============================================================
+	            // [PHASE-6] CHẾ ĐỘ IIR LOW-PASS FILTER
+	            // =============================================================
+	            // Công thức: Y[n] = Alpha * X[n] + (1 - Alpha) * Y[n-1]
+	            // Alpha nhỏ (0.01) → Lọc mạnh, phản ứng chậm
+	            // Alpha lớn (0.5)  → Lọc nhẹ, phản ứng nhanh
+	            // Alpha = 1.0      → Không lọc (bypass)
+	            REGION "IIR_LOWPASS_FILTER"
+	                // Clamp Alpha vào khoảng hợp lệ
+	                #temp_Alpha := #i_IIR_Alpha;
+	                IF #temp_Alpha < 0.01 THEN
+	                    #temp_Alpha := 0.01;
+	                END_IF;
+	                IF #temp_Alpha > 1.0 THEN
+	                    #temp_Alpha := 1.0;
+	                END_IF;
+	                
+	                // Lần chạy đầu tiên: Khởi tạo output = input (tránh output = 0 lúc khởi động)
+	                IF NOT #stat_IIR_Init THEN
+	                    #stat_IIR_Output := #temp_Scaled;
+	                    #stat_IIR_Init := TRUE;
+	                ELSE
+	                    #stat_IIR_Output := (#temp_Alpha * #temp_Scaled) + ((1.0 - #temp_Alpha) * #stat_IIR_Output);
+	                END_IF;
+	                
+	                #o_ScaledValue := #stat_IIR_Output;
+	            END_REGION
+	        ELSE
+	            // =============================================================
+	            // CHẾ ĐỘ MOVING AVERAGE (MẶC ĐỊNH — Mode 0)
+	            // =============================================================
+				REGION "MOVING_AVERAGE_FILTER"
+	                // A. Giới hạn kích thước lọc (Kẹp dòng 1 đến 50)
+	                IF #i_FilterSize > 50 THEN
+	                    #temp_Limit := 50;
+	                ELSIF #i_FilterSize < 1 THEN
+	                    #temp_Limit := 1;
+	                ELSE
+	                    #temp_Limit := #i_FilterSize;
+	                END_IF;
+	                
+	                // B. Nếu không cần lọc (Size = 1) -> Xuất thẳng giá trị
+	                IF #temp_Limit = 1 THEN
+	                    #o_ScaledValue := #temp_Scaled;
+	                    #stat_Index := 1; // Reset Index về an toàn
+	                ELSE
+	                    // --- OPTIMIZED MOVING AVERAGE (O(1) Complexity) ---
+	                    
+	                    // 1. Bảo vệ Index: Nếu Index bị sai (<=0 hoặc > Limit) thì đưa về 1 ngay
+	                    IF (#stat_Index < 1) OR (#stat_Index > #temp_Limit) THEN
+	                        #stat_Index := 1;
+	                    END_IF;
+	                    
+	                    // 2. Kiểm tra nếu Size bộ lọc thay đổi hoặc cần triệt tiêu sai số tích lũy (Floating point drift)
+	                    // Chỉ chạy vòng lặp FOR khi Index quay về 1 để tránh quá tải CPU
+	                    IF (#stat_Index = 1) THEN
+	                        #stat_Sum := 0.0;
+	                        FOR #i := 1 TO #temp_Limit DO
+	                            #stat_Sum := #stat_Sum + #stat_Buffer[#i];
+	                        END_FOR;
+	                    END_IF;
+	                    
+	                    // 3. Thuật toán tối ưu: Tổng mới = Tổng cũ - Giá trị cũ nhất + Giá trị mới nhất
+	                    // Trừ giá trị sắp bị ghi đè khỏi tổng
+	                    #stat_Sum := #stat_Sum - #stat_Buffer[#stat_Index];
+	                    
+	                    // Ghi giá trị mới vào mảng
+	                    #stat_Buffer[#stat_Index] := #temp_Scaled;
+	                    
+	                    // Cộng giá trị mới vào tổng
+	                    #stat_Sum := #stat_Sum + #temp_Scaled;
+	                    
+	                    // 4. Chia trung bình -> Xuất ra Output
+	                    #o_ScaledValue := #stat_Sum / INT_TO_REAL(#temp_Limit);
+	                    
+	                    // 5. Tăng Index cho vòng quét sau
+	                    #stat_Index := #stat_Index + 1;
+	                    
+	                    // 6. Quay vòng: Nếu Index vượt quá Limit thì quay về 1
+	                    IF #stat_Index > #temp_Limit THEN
+	                        #stat_Index := 1;
+	                    END_IF;
+	                END_IF;
+	            END_REGION
+	        END_IF;
+END_FUNCTION_BLOCK
+

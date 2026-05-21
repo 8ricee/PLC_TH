@@ -1,0 +1,23 @@
+DATA_BLOCK "DB_IO_Mapping"
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+NON_RETAIN
+   STRUCT 
+      Input : Struct   // Đầu vào từ phần cứng
+         Loadcell : Array[1..7] of Int;   // DI/AI: Tín hiệu Analog thô từ đầu cân W100 (0-27648)
+         Encoder_Count : Array[1..7] of UDInt;   // DI/HSC: Tổng số xung đếm được từ Encoder E50 (chế độ Counting)
+         VFD_Fault : Array[1..7] of Bool;   // DI: Tín hiệu đầu vào báo lỗi từ Biến tần (VFD)
+         Local_Remote_Switch : Array[1..7] of Bool;   // DI: Công tắc tủ điện (TRUE = Local/Chạy bằng tay, FALSE = Remote/PLC)
+      END_STRUCT;
+      Output : Struct   // Đầu ra điều khiển
+         VFD_Start : Array[1..7] of Bool;   // DO: Lệnh ON/OFF chạy biến tần băng cân định lượng
+         VFD_Speed : Array[1..7] of Int;   // AQ: Tín hiệu Analog xuất ra đk tốc độ biến tần (0-27648)
+         System_Error : Bool;   // DO: Cảnh báo lỗi hệ thống tổng hợp (Đèn/Còi)
+      END_STRUCT;
+   END_STRUCT;
+
+
+BEGIN
+
+END_DATA_BLOCK
+

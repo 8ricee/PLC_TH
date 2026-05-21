@@ -1,0 +1,68 @@
+﻿FUNCTION_BLOCK "FB_Feeder_Alarms"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 1.0
+   VAR_INPUT 
+      i_AutoMode : Bool; // Chế độ Tự động (Auto)
+      i_Running : Bool; // Trạng thái cân đang chạy
+      i_Setpoint_Flow : Real; // Lưu lượng đặt (kg/h)
+      i_Actual_FlowRate : Real; // Lưu lượng thực tế (kg/h)
+      i_Simulation : Bool; // Chế độ mô phỏng
+      i_LocalMode : Bool; // Chế độ tại chỗ (Local)
+      i_CycleTime_sec : Real; // Chu kỳ vòng quét (s)
+   END_VAR
+
+   VAR_OUTPUT 
+      o_Alarm_DevHigh : Bool; // Cảnh báo sai lệch CAO
+      o_Alarm_DevLow : Bool; // Cảnh báo sai lệch THẤP
+   END_VAR
+
+   VAR_IN_OUT 
+      io_Config : "UDT_Feeder_Config";
+   END_VAR
+
+   VAR 
+      stat_DevHigh_Timer : Real; // Bộ đếm thời gian trễ cảnh báo cao
+      stat_DevLow_Timer : Real; // Bộ đếm thời gian trễ cảnh báo thấp
+   END_VAR
+
+   VAR_TEMP 
+      temp_Deviation_Pct : Real; // Phần trăm sai lệch tính toán
+   END_VAR
+
+
+BEGIN
+	// Chỉ kiểm tra khi đang chạy Auto VÀ SP > 0 VÀ không phải Simulation VÀ đang ở REMOTE (FALSE)
+	IF #i_Running AND #i_AutoMode AND (#i_Setpoint_Flow > 0.0) AND NOT #i_Simulation AND NOT #i_LocalMode THEN
+	    // Tính % lệch: (Actual - SP) / SP * 100
+	    #temp_Deviation_Pct := ((#i_Actual_FlowRate - #i_Setpoint_Flow) / #i_Setpoint_Flow) * 100.0;
+	    
+	    // --- HIGH DEVIATION (Lệch cao) --- 
+	    IF #temp_Deviation_Pct > #io_Config.DevAlarm_Pct THEN
+	        #stat_DevHigh_Timer := #stat_DevHigh_Timer + #i_CycleTime_sec;
+	        IF #stat_DevHigh_Timer >= #io_Config.DevAlarm_Delay_sec THEN
+	            #o_Alarm_DevHigh := TRUE;
+	        END_IF;
+	    ELSE
+	        #stat_DevHigh_Timer := 0.0;
+	        #o_Alarm_DevHigh := FALSE;
+	    END_IF;
+	    
+	    // --- LOW DEVIATION (Lệch thấp) ---
+	    IF (- #temp_Deviation_Pct) > #io_Config.DevAlarm_Pct THEN
+	        #stat_DevLow_Timer := #stat_DevLow_Timer + #i_CycleTime_sec;
+	        IF #stat_DevLow_Timer >= #io_Config.DevAlarm_Delay_sec THEN
+	            #o_Alarm_DevLow := TRUE;
+	        END_IF;
+	    ELSE
+	        #stat_DevLow_Timer := 0.0;
+	        #o_Alarm_DevLow := FALSE;
+	    END_IF;
+	ELSE
+	    // Reset alarm khi không chạy Auto
+	    #stat_DevHigh_Timer := 0.0;
+	    #stat_DevLow_Timer := 0.0;
+	    #o_Alarm_DevHigh := FALSE;
+	    #o_Alarm_DevLow := FALSE;
+	END_IF;
+
+END_FUNCTION_BLOCK

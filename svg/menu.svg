@@ -1,0 +1,9 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" width="512"
+    height="512" x="0" y="0" viewBox="0 0 24 24" style="enable-background:new 0 0 512 512" xml:space="preserve"
+    class="">
+    <g>
+        <path
+            d="M0 3v8h11V0H3a3 3 0 0 0-3 3Zm3 0h5v5H3ZM21 0h-8v11h11V3a3 3 0 0 0-3-3Zm0 8h-5V3h5ZM0 21a3 3 0 0 0 3 3h8V13H0Zm3-5h5v5H3ZM13 24h8a3 3 0 0 0 3-3v-8H13Zm3-8h5v5h-5Z"
+            fill="#ffffff" opacity="1" data-original="#000000" class=""></path>
+    </g>
+</svg>

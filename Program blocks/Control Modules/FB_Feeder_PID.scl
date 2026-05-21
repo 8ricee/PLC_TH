@@ -1,0 +1,176 @@
+FUNCTION_BLOCK "FB_Feeder_PID"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 5.0
+   VAR_INPUT 
+      i_AutoMode : Bool;   // True = PID Auto, False = Manual
+      i_Start : Bool;      // Lệnh Start
+      i_Running : Bool;    // Trạng thái biến tần đang chạy
+      i_Done : Bool;       // Cờ báo hiệu mẻ đã xong
+      i_Setpoint_Flow : Real;   // Setpoint đích (kg/h)
+      i_ManualSpeed_HMI : Real; // Tốc độ tay từ HMI (%)
+      i_Actual_FlowRate : Real; // Lưu lượng thực tế (kg/h)
+      i_Dribble_Active : Bool;  // Đang ở chế độ chạy chậm (Dribble)
+      i_CycleTime_sec : Real;   // Chu kỳ vòng quét (s)
+      i_Reset : Bool;           // Lệnh Reset PID
+      i_PID_Load : Bool;        // Lệnh nạp thông số từ HMI/Config vào PID
+      i_PID_Save : Bool;        // Lệnh lưu thông số từ PID vào HMI/Config
+      i_PID_Reset : Bool;       // Lệnh Reset riêng cho PID
+   END_VAR
+
+   VAR_OUTPUT 
+      o_Speed_Pct : Real;   // Ngõ ra tốc độ cho biến tần (%)
+      o_State : Int;        // Trạng thái hiện tại của PID hệ thống
+      o_Error : Bool;       // Cờ báo lỗi PID
+      o_PID_Setpoint : Real;      // Setpoint gửi cho PID (kg/h)
+      o_PID_Input : Real;         // Phản hồi gửi cho PID (kg/h)
+   END_VAR
+
+   VAR_IN_OUT 
+      io_Config : "UDT_Feeder_Config";
+      io_PID : PID_Compact;
+   END_VAR
+
+   VAR 
+      stat_Prev_Start : Bool;      // Lưu trạng thái i_Start chu kỳ trước
+      stat_Prev_AutoMode : Bool;   // Lưu trạng thái i_AutoMode chu kỳ trước
+      stat_Prev_Mode : Int := -1;  // Lưu trạng thái Mode để PLC xuất đúng 1 lệnh duy nhất
+   END_VAR
+
+   VAR_TEMP 
+      temp_Setpoint : Real; 
+      temp_PID_Out : Real;
+      temp_PID_Stat : Int;
+      temp_PID_Err : DWord;
+      temp_PID_Reset : Bool;
+      temp_ManualEnable : Bool;
+      temp_ManualValue : Real;
+      temp_Mode : Int;             // Mode sẽ gán cho sRet.i_Mode trước khi gọi PID
+   END_VAR
+
+
+BEGIN
+	// =====================================================================
+	// --- [1] CHUẨN BỊ SETPOINT --- 
+	// =====================================================================
+	#temp_Setpoint := #i_Setpoint_Flow;
+	IF #i_Dribble_Active THEN
+	    #temp_Setpoint := #temp_Setpoint * (#io_Config.Dribble_Speed_Pct / 100.0);
+	END_IF;
+
+	// =====================================================================
+	// --- [2] XÁC ĐỊNH CHẾ ĐỘ VÀ KHỞI ĐỘNG PID (V1.2 COMMISSIONING) ---
+	// =====================================================================
+	// Quy tắc: sRet.i_Mode CHỈ ĐƯỢC GÁN MỘT LẦN DUY NHẤT mỗi vòng quét.
+	// Đây là cách duy nhất để PID_Compact V1.2 nhận diện lệnh Start.
+	// =====================================================================
+	
+	// Chân Reset cứng của khối PID
+	// Đã tách i_PID_Reset ra khỏi đây để tránh lỗi xung đột khi vừa nhả Reset vừa nhảy Mode 3
+	#temp_PID_Reset := #i_Reset; 
+	
+	// --- Bước A: Xác định Mode mặc định theo chế độ vận hành ---
+	IF (#i_Start AND NOT #stat_Prev_Start) THEN
+	    // CYCLE 1 CỦA XUNG START: Ép Mode = 0 để reset state máy trạng thái của PID
+	    #temp_Mode := 0;
+	    #temp_ManualEnable := FALSE;
+	    #temp_ManualValue := 0.0;
+	ELSIF #i_PID_Reset THEN
+	    // Giả lập HMI (Press): Bấm PID_Reset -> Ép Mode = 0 (Inactive) để xóa lỗi và tạo mốc sườn
+	    #temp_Mode := 0;
+	    #temp_ManualEnable := FALSE;
+	    #temp_ManualValue := 0.0;
+	ELSIF #i_Done THEN
+	    // Xong mẻ -> ép Manual với tốc độ 0 ngay
+	    #temp_Mode := 4;
+	    #temp_ManualEnable := TRUE;
+	    #temp_ManualValue := 0.0;
+	ELSIF NOT #i_AutoMode THEN
+	    // Chế độ Tay: Luôn nhận giá trị HMI, KHÔNG cần i_Start
+	    #temp_Mode := 4;
+	    #temp_ManualEnable := TRUE;
+	    #temp_ManualValue := #i_ManualSpeed_HMI;
+	ELSIF #i_Start OR #i_Running THEN
+	    // Chế độ Tự động + (Start hoặc đang chạy) -> Auto
+	    #temp_Mode := 3;
+	    #temp_ManualEnable := FALSE;
+	    #temp_ManualValue := 0.0;
+	ELSE
+	    // Auto nhưng chưa Start -> Manual với tốc độ 0 (chờ)
+	    #temp_Mode := 4;
+	    #temp_ManualEnable := TRUE;
+	    #temp_ManualValue := 0.0;
+	END_IF;
+	
+	// --- Bước B: Gán Mode và gọi PID ---
+	// KHÔNG GHI LIÊN TỤC. Giả lập cú nhả phím HMI (Release): 
+	// Khi nhả PID_Reset, temp_Mode nhảy từ 0 lên 3 -> PLC ghi đúng 1 lần số 3 -> Tạo sườn kích hoạt!
+	IF #temp_Mode <> #stat_Prev_Mode THEN
+	    #io_PID.sRet.i_Mode := #temp_Mode;
+	    #stat_Prev_Mode := #temp_Mode;
+	END_IF;
+	
+	#io_PID(Setpoint     := #temp_Setpoint,
+	        Input        := #i_Actual_FlowRate,
+	        ManualEnable := #temp_ManualEnable,
+	        ManualValue  := #temp_ManualValue,
+	        Reset        := #temp_PID_Reset,
+	        Output       => #temp_PID_Out,
+	        State        => #temp_PID_Stat,
+	        Error        => #temp_PID_Err);
+
+	// Cập nhật biến lưu trạng thái trước
+	#stat_Prev_Start := #i_Start;
+	#stat_Prev_AutoMode := #i_AutoMode;
+
+	// =====================================================================
+	// --- [3] QUYẾT ĐỊNH TỐC ĐỘ CUỐI CÙNG ---
+	// =====================================================================
+	IF #i_Done THEN
+	    #o_Speed_Pct := 0.0;
+	ELSIF NOT #i_AutoMode THEN
+	    // Manual: Xuất giá trị HMI khi hệ thống đang chạy (duy trì) hoặc đang nhấn Start
+	    IF #i_Running OR #i_Start THEN
+	        #o_Speed_Pct := #i_ManualSpeed_HMI;
+	    ELSE
+	        #o_Speed_Pct := 0.0;
+	    END_IF;
+	ELSIF #i_Running OR #i_Start THEN
+	    // Auto: xuất giá trị PID tính toán
+	    #o_Speed_Pct := #temp_PID_Out;
+	ELSE
+	    #o_Speed_Pct := 0.0;
+	END_IF;
+
+	// =====================================================================
+	// --- [4] ĐỒNG BỘ THÔNG SỐ PID (LOAD/SAVE) ---
+	// =====================================================================
+	// Lệnh nạp thông số (từ HMI/Config vào PID)
+	IF #i_PID_Load THEN
+	    #io_PID.sRet.r_Ctrl_Gain := #io_Config.PID_Kp;
+	    #io_PID.sRet.r_Ctrl_Ti   := #io_Config.PID_Ti;
+	    #io_PID.sRet.r_Ctrl_Td   := #io_Config.PID_Td;
+	    #io_PID.sPid_Cmpt.r_Lmn_Hlm := #io_Config.PID_OutputMax;
+	    #io_PID.sPid_Cmpt.r_Lmn_Llm := #io_Config.PID_OutputMin;
+	    #io_PID.sPid_Cmpt.r_Pv_Hlm  := #io_Config.MaxFlowRate;
+	    #io_PID.sPid_Cmpt.r_Pv_Llm  := 0.0;
+	END_IF;
+
+	// Lệnh lưu thông số (từ PID vào HMI/Config)
+	IF #i_PID_Save THEN
+	    #io_Config.PID_Kp := #io_PID.sRet.r_Ctrl_Gain;
+	    #io_Config.PID_Ti := #io_PID.sRet.r_Ctrl_Ti;
+	    #io_Config.PID_Td := #io_PID.sRet.r_Ctrl_Td;
+	    #io_Config.PID_OutputMax := #io_PID.sPid_Cmpt.r_Lmn_Hlm;
+	    #io_Config.PID_OutputMin := #io_PID.sPid_Cmpt.r_Lmn_Llm;
+	    #io_Config.MaxFlowRate   := #io_PID.sPid_Cmpt.r_Pv_Hlm;
+	END_IF;
+
+	// =====================================================================
+	// --- [5] GÁN NGÕ RA TRẠNG THÁI ---
+	// =====================================================================
+	#o_State := #temp_PID_Stat;
+	#o_Error := (#temp_PID_Err <> 0);
+	#o_PID_Setpoint := #temp_Setpoint; 
+	#o_PID_Input := #i_Actual_FlowRate;
+
+END_FUNCTION_BLOCK

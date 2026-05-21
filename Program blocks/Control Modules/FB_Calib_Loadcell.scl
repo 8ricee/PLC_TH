@@ -1,0 +1,134 @@
+FUNCTION_BLOCK "FB_Calib_Loadcell"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 1.0
+   VAR_INPUT 
+      i_RawInput : Real;   // Tín hiệu loadcell đã qua lọc (từ FB_AnalogInput_Filter)
+      i_Config_Capacity : Real;   // Sức chịu tải max của Loadcell (kg)
+      i_CycleTime_sec : Real;   // Chu kỳ quét OB30 (giây) — dùng cho Dynamic Zero
+      i_ZeroAvg_Duration : Real := 10.0;   // Thời gian lấy trung bình Zero (giây, mặc định 10s)
+   END_VAR
+
+   VAR_OUTPUT 
+      o_CalibStatus : Int;   // Status: 0=Idle, 1=Zero OK, 2=Span OK, 3=Zeroing..., 9=Error
+      o_CurrentWeight : Real;   // Khối lượng đầu ra sau tính toán (kg)
+   END_VAR
+
+   VAR_IN_OUT 
+      io_Data : "UDT_Calib";   // Cấu trúc Data giữ lệnh Cmd và thông số Zero/Span/Hệ số K
+   END_VAR
+
+   VAR  
+      // Edge detection
+      stat_Edge_SetZero : Bool;   // Bắt sườn xung cho lệnh ghi điểm Zero
+      stat_Edge_SetSpan : Bool;   // Bắt sườn xung cho lệnh ghi điểm Span
+      // [V1.0] Dynamic Zero Averaging
+      stat_Zeroing_Active : Bool;   // Đang trong quá trình lấy trung bình Zero
+      stat_Zero_Sum : LReal;   // Tổng tích lũy (dùng LReal chống mất precision khi cộng dồn)
+      stat_Zero_Count : DInt;   // Số mẫu đã lấy được
+      stat_Zero_Timer : Real;   // Đếm thời gian đã trôi qua (giây)
+   END_VAR
+
+   VAR_TEMP
+      temp_Weight : Real; // Khối lượng tính toán tạm thời
+      temp_Duration : Real; // Thời gian lấy mẫu sau khi kẹp (Clamp)
+   END_VAR
+
+BEGIN
+    // =============================================================
+    // PHẦN 1: DYNAMIC ZERO CALIBRATION (Lấy trung bình theo thời gian)
+    // =============================================================
+    // [V1.0] Thay thế Static Snapshot bằng Dynamic Averaging:
+    // - Bấm Set Zero → PLC bắt đầu đo liên tục trong i_ZeroAvg_Duration giây
+    // - Tính trung bình cộng (Mean) của tất cả mẫu → Lưu làm Saved_RawZero
+    // - Loại bỏ hoàn toàn sai số do mối nối/điểm nặng trên dây băng
+    REGION "ZERO_CALIBRATION"
+        // Bắt sườn lên: Khi operator bấm nút Set Zero trên HMI
+        IF #io_Data.Cmd_SetZero AND NOT #stat_Edge_SetZero THEN
+            // Khởi tạo quá trình lấy mẫu
+            #stat_Zeroing_Active := TRUE;
+            #stat_Zero_Sum := 0.0;
+            #stat_Zero_Count := 0;
+            #stat_Zero_Timer := 0.0;
+            #o_CalibStatus := 3; // STATUS: Đang Zeroing... (HMI hiển thị "Calibrating...")
+        END_IF;
+        #stat_Edge_SetZero := #io_Data.Cmd_SetZero;
+        
+        // Sampling loop: Tích lũy mẫu liên tục trong suốt thời gian cấu hình
+        IF #stat_Zeroing_Active THEN
+            // Cộng dồn giá trị Raw hiện tại vào tổng (dùng LReal để giữ precision)
+            #stat_Zero_Sum := #stat_Zero_Sum + REAL_TO_LREAL(#i_RawInput);
+            #stat_Zero_Count := #stat_Zero_Count + 1;
+            #stat_Zero_Timer := #stat_Zero_Timer + #i_CycleTime_sec;
+            
+            // Clamp duration vào khoảng an toàn (3s - 60s)
+            #temp_Duration := #i_ZeroAvg_Duration;
+            IF #temp_Duration < 3.0 THEN #temp_Duration := 3.0; END_IF;
+            IF #temp_Duration > 60.0 THEN #temp_Duration := 60.0; END_IF;
+            
+            // Kết thúc: Hết thời gian → Tính trung bình và lưu kết quả
+            IF #stat_Zero_Timer >= #temp_Duration THEN
+                IF #stat_Zero_Count > 0 THEN
+                    #io_Data.Saved_RawZero := LREAL_TO_REAL(#stat_Zero_Sum / DINT_TO_LREAL(#stat_Zero_Count));
+                    #o_CalibStatus := 1; // STATUS: Zero OK
+                ELSE
+                    #o_CalibStatus := 9; // ERROR: Không có mẫu nào (bất thường)
+                END_IF;
+                #stat_Zeroing_Active := FALSE;
+            END_IF;
+        END_IF;
+    END_REGION
+    
+    // =============================================================
+    // PHẦN 2: XỬ LÝ LỆNH CALIB ĐIỂM SPAN (TEST WEIGHT)
+    // =============================================================
+    // Span Calibration giữ nguyên phương pháp Snapshot vì quả cân mẫu đặt tĩnh trên băng
+    REGION "SPAN_CALIBRATION"
+        // Phát hiện sườn lên của nút nhấn Set Span
+        IF #io_Data.Cmd_SetSpan AND NOT #stat_Edge_SetSpan THEN
+            // Lưu lại giá trị Raw hiện tại khi đang đặt quả cân
+            #io_Data.Saved_RawSpan := #i_RawInput;
+            
+            // Lưu lại khối lượng quả cân mẫu
+            #io_Data.Saved_TestWeight := #io_Data.Test_Weight;
+            
+            // Tự động tính toán lại hệ số Calib_Factor (Độ dốc đường thẳng)
+            // Công thức: Factor = (Weight) / (RawSpan - RawZero)
+            IF ABS(#io_Data.Saved_RawSpan - #io_Data.Saved_RawZero) > 10.0 THEN // Tránh chia cho 0 hoặc nhiễu
+                #io_Data.Calib_Factor := #io_Data.Saved_TestWeight / (#io_Data.Saved_RawSpan - #io_Data.Saved_RawZero);
+                #o_CalibStatus := 2; // STATUS: SPAN OK
+            ELSE
+                #o_CalibStatus := 9; // ERROR: Khoảng chênh lệch Raw quá nhỏ
+            END_IF;
+        END_IF;
+        #stat_Edge_SetSpan := #io_Data.Cmd_SetSpan; // Trạng thái sườn xung
+    END_REGION
+    
+    // =============================================================
+    // PHẦN 3: TÍNH TOÁN KHỐI LƯỢNG THỰC TẾ (OUTPUT)
+    // =============================================================
+    REGION "WEIGHT_CALCULATION"
+        // Công thức: Weight = (CurrentRaw - RawZero) * Factor * FactorK
+        
+        // [UPDATE] THEORY FALLBACK: Nếu chưa Calib xong (Factor=0), dùng tỉ lệ lý thuyết để HMI hiện số
+        IF #io_Data.Calib_Factor > 0.0 THEN
+            // CHẾ ĐỘ CHUẨN: Dùng hệ số đã Calib thực tế
+            #temp_Weight := (#i_RawInput - #io_Data.Saved_RawZero) * #io_Data.Calib_Factor;
+        ELSIF #i_Config_Capacity > 0.0 THEN
+            // CHẾ ĐỘ DỰ PHÒNG (THEORY): Dùng tỉ lệ cơ khí (VD: 27648 counts = 100kg)
+            #temp_Weight := (#i_RawInput - #io_Data.Saved_RawZero) * (#i_Config_Capacity / 27648.0);
+        ELSE
+            #temp_Weight := 0.0;
+        END_IF;
+        
+        // Nhân thêm hệ số hiệu chỉnh K
+        #temp_Weight := #temp_Weight * #io_Data.FactorK;
+        
+        // Logic phụ: Nếu cân âm nhỏ (do nhiễu không tải) thì đưa về 0 cho đẹp
+        // IF (#temp_Weight < 0.0) AND (#temp_Weight > -0.5) THEN
+        //     #temp_Weight := 0.0;
+        // END_IF;
+        
+        // Gán lại ngõ ra cuối cùng
+        #o_CurrentWeight := #temp_Weight;
+    END_REGION
+END_FUNCTION_BLOCK

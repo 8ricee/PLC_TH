@@ -1,0 +1,113 @@
+﻿FUNCTION_BLOCK "FB_Encoder_SpeedCalc"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.2
+   VAR_INPUT 
+      i_HSC_Count : UDInt;   // Giá trị bộ đếm hiện tại từ High Speed Counter (HSC)
+      i_PulsePerRev : Int;   // Độ phân giải Encoder (PPR - Pulse Per Revolution)
+      i_WheelDiameter_mm : Real;   // Đường kính rulo cơ khí (đơn vị: mm)
+      i_CycleTime_sec : Real;   // Chu kỳ vòng quét của khối gọi (Thường bằng tính chu kỳ ngắt OB30)
+   END_VAR
+
+   VAR_OUTPUT 
+      o_Speed_RPM : Real;   // Tốc độ vòng quay của Rulo (Vòng/Phút)
+      o_Speed_MPM : Real;   // [FIX-N2] Tốc độ dài của băng tải (Mét/Phút — MPM = Meters Per Minute)
+      o_Frequency_Hz : Real;   // Khôi phục lại Tần số thực tế (Hz) dùng cho giao diện
+   END_VAR
+
+   VAR 
+      stat_PrevCount : UDInt;   // Số xung HSC ở cycle trước (Dùng tính Delta đếm tăng)
+      stat_Initialized : Bool;   // Cờ bỏ qua cycle đầu tiên chống nhảy số khi khởi động trễ
+      stat_Frequency_Filtered : Real; // Tần số đã được lọc mượt (Low-pass filter)
+   END_VAR
+
+   VAR_TEMP 
+      temp_DeltaCount : UDInt;   // Số xung chênh lệch trong 1 cycle (Count - PrevCount)
+      temp_DeltaReal : Real;   // Xung chênh lệch định dạng Real 
+      temp_Frequency : Real;   // Bộ đệm tính Hz nội bộ (Tần số tức thời)
+      temp_Circumference_m : Real;   // Chu vi rulo đổi ra đơn vị mét (m) 
+   END_VAR
+
+   VAR CONSTANT 
+      PI : Real := 3.141593;
+   END_VAR
+
+
+BEGIN
+	REGION "SAFETY_CHECK"
+	    // =============================================================
+	    // 1. BẢO VỆ CHIA CHO 0 VÀ KHỞI TẠO (SAFETY CHECK)
+	    // =============================================================
+	    IF (#i_PulsePerRev <= 0) OR (#i_WheelDiameter_mm <= 0) OR (#i_CycleTime_sec <= 0.0) THEN
+	        #o_Speed_RPM := 0.0;
+	        #o_Speed_MPM := 0.0;
+	        #o_Frequency_Hz := 0.0;
+	        RETURN;
+	    END_IF;
+	    
+	    // Lần chạy đầu tiên: Khởi tạo PrevCount = CurrentCount
+	    // Tránh delta = CurrentCount (rất lớn) gây nhảy số lúc khởi động
+	    IF NOT #stat_Initialized THEN
+	        #stat_PrevCount := #i_HSC_Count;
+	        #stat_Initialized := TRUE;
+	        #o_Speed_RPM := 0.0;
+	        #o_Speed_MPM := 0.0;
+	        #o_Frequency_Hz := 0.0;
+	        #stat_Frequency_Filtered := 0.0;
+	        RETURN;
+	    END_IF;
+	END_REGION
+	
+	REGION "DELTA_CALCULATION"
+	    // =============================================================
+	    // 2. TÍNH DELTA XUNG (DELTA COUNT)
+	    // =============================================================
+	    // DWord subtraction tự xử lý overflow/wrap-around:
+	    // VD: Current=5, Prev=4294967290 → Delta=11 (đúng!)
+	    #temp_DeltaCount := #i_HSC_Count - #stat_PrevCount;
+	    
+	    // Lưu lại cho vòng quét sau
+	    #stat_PrevCount := #i_HSC_Count;
+	    
+	    // Convert DWord → Real để tính toán
+	    #temp_DeltaReal := UDINT_TO_REAL(#temp_DeltaCount);
+	    
+	    // Bảo vệ: Nếu delta quá lớn (nhiễu hoặc lỗi), bỏ qua
+	    IF #temp_DeltaReal > 100000.0 THEN
+	        #temp_DeltaReal := 0.0;
+	    END_IF;
+	END_REGION
+	
+	REGION "CALCULATION"
+	    // =============================================================
+	    // 3. TÍNH TOÁN TỐC ĐỘ (CALCULATION)
+	    // =============================================================
+	    
+	    // A. Tính tần số (Hz) = Số xung / Thời gian
+	    #temp_Frequency := #temp_DeltaReal / #i_CycleTime_sec;
+	    
+	    // B. Lọc thông thấp (PT1 Low-Pass Filter) để chống nhiễu dao động tốc độ
+	    // Hệ số lọc (Filter Weight) = 0.1 (Có thể thay đổi từ 0.01 đến 1.0, nhỏ thì mượt nhưng đáp ứng chậm)
+	    #stat_Frequency_Filtered := #stat_Frequency_Filtered + (#temp_Frequency - #stat_Frequency_Filtered) * 0.1;
+	    
+	    // Ngắt đuôi số dư rất nhỏ về 0
+	    IF #stat_Frequency_Filtered < 0.001 THEN
+	        #stat_Frequency_Filtered := 0.0;
+	    END_IF;
+	    
+	    #o_Frequency_Hz := #stat_Frequency_Filtered;
+	    
+	    // C. Tính tốc độ vòng quay (RPM)
+	    // RPM = (Freq * 60) / PPR
+	    #o_Speed_RPM := (#stat_Frequency_Filtered * 60.0) / INT_TO_REAL(#i_PulsePerRev);
+	    
+	    // D. Tính chu vi Rulo (đổi mm sang m)
+	    #temp_Circumference_m := #PI * (#i_WheelDiameter_mm / 1000.0);
+	    
+	    // E. Tính tốc độ dài (m/s)
+	    // #o_Speed_MPM := (#o_Speed_RPM / 60.0) * #temp_Circumference_m;
+
+		// F. Tính tốc độ dài (m/ph)
+    	#o_Speed_MPM := #o_Speed_RPM * #temp_Circumference_m; 
+	END_REGION
+END_FUNCTION_BLOCK
+

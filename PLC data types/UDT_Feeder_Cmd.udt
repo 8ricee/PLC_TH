@@ -1,0 +1,23 @@
+TYPE "UDT_Feeder_Cmd"
+VERSION : 0.1
+   STRUCT
+      AutoMode : Bool;   // Auto (PID), 0: Manual (HMI)
+      Start : Bool;
+      Stop : Bool;
+      Reset : Bool;
+      Running : Bool;    // Cờ báo hệ thống đang trong mẻ chạy
+      Setpoint_Flow : Real;   // Setpoint lưu lượng (kg/h) - Dùng cho Auto
+      Target_Weight : Real;   // Khối lượng cần cân (kg) - Dùng để ngắt 
+      Simulation : Bool;   // Chế độ mô phỏng (Không cần phần cứng)
+      ManualSpeed_HMI : Real;   // Tốc độ chạy tay nhập từ HMI (0-100%)
+      Clear_Totalizer : Bool;   // Lệnh xóa khối lượng tích lũy (Cấp mẻ mới hoặc xóa tay)
+
+      PID_Load : Bool;          // Lệnh nạp thông số từ Config vào PID TO
+      PID_Save : Bool;          // Lệnh lưu thông số từ PID TO vào Config
+      PID_Reset : Bool;         // Lệnh Reset PID
+      Test_Mode : Bool;         // Kích hoạt chế độ chạy thử (không cộng dồn vào ca)
+      Test_MechCalib_Mode : Bool; // Bật để báo hiệu hệ thống đang chạy đo cơ khí (bỏ qua check Test_Target_Weight)
+      Test_Target_Weight : Real; // Khối lượng đích chạy thử (kg)
+   END_STRUCT;
+
+END_TYPE

@@ -1,0 +1,21 @@
+﻿DATA_BLOCK "PID_Feeder_6"
+{InstructionName := 'PID_Compact';
+ LibVersion := '1.2';
+ S7_Optimized_Access := 'TRUE' }
+AUTHOR : SIMATIC
+NAME : PID_Cmpt
+VERSION : 1.2
+NON_RETAIN
+PID_Compact
+
+BEGIN
+   sby_EsData_1 := 16#01;
+   si_Unit := 1;
+   si_Type := 9;
+   sPid_Cmpt.b_Input_PER_On := FALSE;
+   sPid_Cmpt.r_Pv_Hlm := 10000.0;
+   sPid_Cmpt.r_Pv_HWrn := 10000.0;
+   sPid_Cmpt.r_Pv_LWrn := 0.0;
+
+END_DATA_BLOCK
+

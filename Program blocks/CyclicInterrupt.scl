@@ -1,0 +1,112 @@
+ORGANIZATION_BLOCK "CyclicInterrupt"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_TEMP 
+      idx : Int;   // Biến chỉ số dùng cho vòng lặp FOR xử lý Bumpless Transfer
+   END_VAR
+
+BEGIN
+	        // [FIX-WATCHDOG] Reset cycle watchdog timer to prevent STOP mode due to nested OBs
+	        RE_TRIGR();
+	        
+	        REGION "RESET_INTERLOCK"
+	            // Chỉ cho phép Reset khi: IDLE (0), FAULT (90), PAUSED (99)
+	            // Đang chạy (DOSING = 30): ép về FALSE
+	            IF ("DB_HMI_Data".System_Status.System_State >= 10)
+	               AND ("DB_HMI_Data".System_Status.System_State < 90) THEN
+	                "DB_HMI_Data".Commands.Reset := FALSE;
+	            END_IF;
+	        END_REGION
+	        
+	        REGION "BATCH_CONTROL_CYCLE"
+	            "DB_BatchManager"(i_Sys_Start := "DB_HMI_Data".Commands.Start,
+	                              i_Sys_Stop := "DB_HMI_Data".Commands.Stop,
+	                              i_Sys_Pause := "DB_HMI_Data".Commands.Pause,
+	                              i_Sys_Reset := "DB_HMI_Data".Commands.Reset, 
+	                              i_Sys_LoadRecipe := "DB_HMI_Data".Commands.LoadRecipe,
+	                              i_Sys_ManualMode := "DB_HMI_Data".Commands.Global_Manual_Mode,
+	                              i_Sys_Simulation := "DB_HMI_Data".Commands.Simulation_Mode,
+	                              i_HW_LocalMode := "DB_IO_Mapping".Input.Local_Remote_Switch,
+	                              i_CycleTime_sec := 0.1, // Cycle Time OB30 = 100ms
+	                              i_HW_Error := "DB_HMI_Data".System_Status.Hardware_Error, // Kết nối tín hiệu lỗi phần cứng
+	                              io_Recipe := "DB_HMI_Data".Recipe.Current_Recipe,
+	                              i_HW_Loadcell := "DB_IO_Mapping".Input.Loadcell,
+	                              i_HW_Encoder := "DB_IO_Mapping".Input.Encoder_Count,
+	                              i_HW_VFD_Fault := "DB_IO_Mapping".Input.VFD_Fault,
+	                              io_Calib_Cmds := "DB_HMI_Data".Calibration,
+	                              io_Feeder_Configs := "DB_HMI_Data".Feeder_Configs,
+	                              io_MechCalib_Cmds := "DB_HMI_Data".Feeder_Mech_Calibs,
+	                              io_Manual_Cmds := "DB_HMI_Data".Feeder_Manual_Cmds,
+	                              
+	                              // Outputs
+	                              o_System_State => "DB_HMI_Data".System_Status.System_State,
+	                              o_System_Paused => "DB_HMI_Data".System_Status.System_Paused, // [MISS-06]
+	                              o_System_Error => "DB_HMI_Data".System_Status.System_Error,
+	                              o_Error_ID => "DB_HMI_Data".System_Status.Error_ID,
+	                              o_HW_VFD_Start => "DB_IO_Mapping".Output.VFD_Start,
+	                              o_HW_VFD_Speed => "DB_IO_Mapping".Output.VFD_Speed,
+	                              o_Feeders_Status => "DB_HMI_Data".Feeders_Detail,
+	                              o_Actual_Total_Weight => "DB_HMI_Data".System_Status.Actual_Total_Weight,
+	                              o_Elapsed_Time => "DB_HMI_Data".System_Status.Elapsed_Time);
+	        END_REGION
+	        
+
+	        
+	        REGION "BUMPLESS_TRANSFER_RESET"
+	            // =================================================================
+	            // ÉP RESET LỆNH HMI KHI CHUYỂN AUTO -> MANUAL (BUMPLESS TRANSFER)
+	            // Lấy xung 1 cycle từ FB_BatchManager để đè biến DB_HMI_Data
+	            // =================================================================
+	            // [V1.0] Gom 7 khối IF giống nhau thành FOR loop — OB30 S7-1500 hỗ trợ VAR_TEMP
+	            FOR #idx := 1 TO 7 DO
+	                IF "DB_BatchManager".o_Manual_Cmd_Clear[#idx] THEN
+	                    "DB_HMI_Data".Feeder_Manual_Cmds[#idx].Start := FALSE;
+	                    "DB_HMI_Data".Feeder_Manual_Cmds[#idx].Stop := FALSE; // Đổi thành FALSE để tránh kẹt nút Stop trên HMI
+	                    "DB_HMI_Data".Feeder_Manual_Cmds[#idx].ManualSpeed_HMI := 0.0;
+	                END_IF;
+	            END_FOR;
+	        END_REGION 
+	        
+	        REGION "ERROR_RESET"
+	            // =================================================================
+	            // CLEAR LỖI KHI NHẤN RESET (PHẢI xử lý ở OB30, TRƯỚC khi clear Reset)
+	            // Vì OB30 có priority cao hơn OB1 → OB30 tiêu thụ Reset trước
+	            // Nếu để ở OB1 (Main.scl), Reset đã bị clear → không bao giờ reach
+	            // =================================================================
+	            IF "DB_HMI_Data".Commands.Reset THEN
+	                "DB_HMI_Data".System_Status.Hardware_Error := FALSE;
+	                "DB_HMI_Data".System_Status.Diagnostics_Info := 16#0000;
+	            END_IF;
+	        END_REGION
+	        
+	        REGION "HMI_RESET"
+	            // =================================================================
+	            // RESET LỆNH HMI (Reset ngay sau khi Block điều khiển đã chạy xong)
+	            // =================================================================
+	            "DB_HMI_Data".Commands.Start := FALSE;
+	            "DB_HMI_Data".Commands.Stop := FALSE;
+	            "DB_HMI_Data".Commands.Reset := FALSE;
+	            "DB_HMI_Data".Commands.Pause := FALSE; 
+	            "DB_HMI_Data".Commands.LoadRecipe := FALSE;
+	        END_REGION
+	        
+	        REGION "BATCH_LOGGING"
+	            // =================================================================
+	            // GHI LỊCH SỬ CA VÀO DB_BatchLog (Ring Buffer 100 bản ghi)
+	            // =================================================================
+	            IF "DB_BatchManager".o_BatchLog_Trigger THEN
+	                // 1. Ghi bản ghi vào vị trí hiện tại
+	                "DB_BatchLog".Records["DB_BatchLog".WriteIndex] := "DB_BatchManager".o_BatchLog;
+	                
+	                // 2. Tăng WriteIndex (quay vòng 1-20) 
+	                "DB_BatchLog".WriteIndex := "DB_BatchLog".WriteIndex + 1;
+	                IF "DB_BatchLog".WriteIndex > 20 THEN
+	                    "DB_BatchLog".WriteIndex := 1; // Quay lại đầu
+	                END_IF;
+	                
+	                // 3. Tăng tổng số mẻ đã ghi (không giới hạn)
+	                "DB_BatchLog".TotalCount := "DB_BatchLog".TotalCount + 1;
+	            END_IF;
+	        END_REGION
+END_ORGANIZATION_BLOCK
+

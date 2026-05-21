@@ -1,0 +1,566 @@
+FUNCTION_BLOCK "FB_BatchStateMachine"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 2.0
+   VAR_INPUT 
+      i_Sys_Start : Bool; // Lệnh khởi động ca từ HMI
+      i_Sys_Stop : Bool; // Lệnh dừng từ HMI
+      i_Sys_Pause : Bool; // Lệnh tạm dừng / tiếp tục (Toggle)
+      i_Sys_Reset : Bool; // Lệnh Reset hệ thống (xoá lỗi)
+      i_Sys_LoadRecipe : Bool; // Lệnh nạp công thức nhưng chưa chạy
+      i_Sys_ManualMode : Bool; // Cờ báo chế độ tay toàn cục
+      i_Sys_Simulation : Bool; // Cờ báo chế độ mô phỏng
+      i_HW_Error : Bool; // Cờ lỗi phần cứng từ chẩn đoán
+      i_CycleTime_sec : Real; // Chu kỳ quét OB30 (giây)
+      i_Feeders_Status : Array[1..7] of "UDT_Feeder_Status"; // Trạng thái phản hồi từ 7 cân
+      i_HW_LocalMode : Array[1..7] of Bool; // Công tắc Local/Remote 7 cân
+   END_VAR
+
+   VAR_OUTPUT 
+      o_System_State : Int; // Mã trạng thái hệ thống (0/30/90/99)
+      o_System_Paused : Bool; // Cờ báo hệ thống đang tạm dừng
+      o_System_Error : Bool; // Cờ lỗi tổng hợp (công thức sai hoặc Local Fault)
+      o_Error_ID : Word; // Mã lỗi chi tiết (Bit15=Recipe, Bit14=Local)
+      o_BatchLog : "UDT_BatchRecord"; // Bản ghi ca để ghi vào DB_BatchLog
+      o_BatchLog_Trigger : Bool; // Xung kích hoạt ghi log (1 chu kỳ duy nhất)
+      o_Elapsed_Time : Time; // Thời gian ca đã chạy
+      o_Manual_Cmd_Clear : Array[1..7] of Bool; // Xung xóa lệnh tay khi Bumpless Transfer
+      o_Global_Reset_Pulse : Bool; // Xung reset 500ms xuất ra cho Manager
+   END_VAR
+
+   VAR_IN_OUT 
+      io_Recipe : "UDT_Recipe"; // Công thức phối trộn hiện tại
+      io_Feeder_Configs : Array[1..7] of "UDT_Feeder_Config"; // Cấu hình 7 cân
+      io_Manual_Cmds : Array[1..7] of "UDT_Feeder_Cmd"; // Lệnh tay từ HMI
+      io_Cmds : Array[1..7] of "UDT_Feeder_Cmd"; // Lệnh nội bộ xuống 7 Feeder
+   END_VAR
+
+   VAR 
+      inst_Timer_Clear {InstructionName := 'TON_TIME'; LibVersion := '1.0'; S7_SetPoint := 'False'} : TON_TIME;
+      inst_Timer_Reset {InstructionName := 'TOF_TIME'; LibVersion := '1.0'; S7_SetPoint := 'False'} : TOF_TIME;
+      stat_Starvation_Timers {InstructionName := 'TON_TIME'; LibVersion := '1.0'} : Array[1..7] of TON_TIME;
+      stat_MechFault_Timers {InstructionName := 'TON_TIME'; LibVersion := '1.0'} : Array[1..7] of TON_TIME; // Timer delay 1' cho lỗi cơ khí
+      
+      stat_State : Int := #MACHINE_STATE_IDLE;
+      stat_Recipe_Error : Bool;
+      stat_Resume_State : Int;
+      stat_BatchLog_Done : Bool;
+      stat_Pause_Edge : Bool;
+      stat_Is_Paused : Bool;
+      stat_Prev_Sys_ManualMode : Bool;
+      stat_Sys_Start_Edge : Bool;
+      stat_Sys_LoadRecipe_Edge : Bool;
+      stat_Active_Percents : Array[1..7] of Real; // Công thức phần trăm đã chốt
+      stat_Shift_Duration_sec : Real; // Thời gian ca đã chạy (giây)
+      stat_Error_Count : Int;
+      stat_Local_Fault : Bool;
+      stat_Waiting_For_Stop : Bool; // Đang chờ động cơ dừng hẳn để chốt lưu lịch sử
+      stat_Stop_Timeout : Real; // Thời gian đã chờ động cơ dừng (giây)
+   END_VAR
+
+   VAR_TEMP 
+      i : Int;
+      temp_AllDone : Bool;
+      temp_TotalPercent : Real;
+      temp_TotalWeight : Real;
+      temp_Max_For_This_Feeder : Real;
+      temp_TotalFlow_Max : Real;
+      temp_Timestamp {InstructionName := 'DTL'; LibVersion := '1.0'} : DTL;
+      temp_RetVal : Int;
+   END_VAR
+ 
+   VAR CONSTANT 
+      MACHINE_STATE_IDLE : Int := 0; // Chờ lệnh (sẵn sàng)
+      MACHINE_STATE_DOSING : Int := 30; // Đang cấp liệu liên tục
+      MACHINE_STATE_FAULT : Int := 90; // Lỗi phần cứng nghiêm trọng
+      MACHINE_STATE_PAUSED : Int := 99; // Tạm dừng (do Pause/Starvation/Local/Fault recovery)
+   END_VAR
+
+BEGIN
+	#o_BatchLog_Trigger := FALSE; // Pulse
+	
+	FOR #i := 1 TO 7 DO
+	    #o_Manual_Cmd_Clear[#i] := FALSE; 
+	END_FOR;
+	
+	// =============================================================
+	// XỬ LÝ PAUSE/RESUME (Toggle logic)
+	// =============================================================
+	REGION "PAUSE_RESUME_LOGIC"
+	    IF #i_Sys_Pause AND NOT #stat_Pause_Edge THEN
+	        IF #stat_Is_Paused THEN
+	            #stat_Is_Paused := FALSE;
+	            #stat_State := #stat_Resume_State;
+	        ELSIF #stat_State = #MACHINE_STATE_DOSING THEN
+	            #stat_Is_Paused := TRUE;
+	            #stat_Resume_State := #stat_State;
+	            #stat_State := #MACHINE_STATE_PAUSED;
+	        END_IF;
+	    END_IF; 
+	    #stat_Pause_Edge := #i_Sys_Pause;
+	    #o_System_Paused := #stat_Is_Paused;
+	END_REGION
+	
+	// =============================================================
+	// MÁY TRẠNG THÁI QUẢN LÝ CA SẢN XUẤT
+	// =============================================================
+	REGION "STATE_MACHINE_LOGIC"
+	    // --- [GLOBAL ABORT] LỖI PHẦN CỨNG ---
+	    IF (#i_HW_Error AND NOT #i_Sys_Simulation) THEN
+	        IF (#stat_State = #MACHINE_STATE_DOSING) AND NOT #stat_BatchLog_Done THEN
+	            #o_BatchLog.BatchID := #io_Recipe.BatchID;
+	            #o_BatchLog.Target_Weight := #io_Recipe.Target_Production;
+	            #o_BatchLog.Actual_Weight := 0.0;
+	            FOR #i := 1 TO 7 DO
+	                #o_BatchLog.Actual_Weight := #o_BatchLog.Actual_Weight + #i_Feeders_Status[#i].Totalized_Weight;
+	            END_FOR;
+	            #o_BatchLog.Status := 2; // Abort
+	            #o_BatchLog_Trigger := TRUE;
+	            #stat_BatchLog_Done := TRUE;
+	        END_IF;
+	        
+	        // Lưu trạng thái trước khi vào FAULT để có thể Resume sau
+	        IF #stat_State = #MACHINE_STATE_DOSING THEN
+	            #stat_Resume_State := #stat_State;
+	        END_IF;
+	        #stat_State := #MACHINE_STATE_FAULT;
+	        #stat_Is_Paused := FALSE;
+	        FOR #i := 1 TO 7 DO
+	            #io_Cmds[#i].Start := FALSE;
+	            #io_Cmds[#i].Stop := TRUE;
+	            #io_Manual_Cmds[#i].Start := FALSE;
+	            #io_Manual_Cmds[#i].Stop := TRUE;
+	        END_FOR;
+	    END_IF;
+	    
+	    // --- [SOFT STOP] DỪNG TỪ HMI ---
+	    IF #i_Sys_Stop THEN
+	        IF #stat_State = #MACHINE_STATE_DOSING THEN
+	            // Ghi log khi dừng ca
+	            IF NOT #stat_BatchLog_Done THEN
+	                #temp_RetVal := RD_SYS_T(#temp_Timestamp);
+	                #o_BatchLog.BatchID := #io_Recipe.BatchID;
+	                #o_BatchLog.Target_Weight := #io_Recipe.Target_Production;
+	                #o_BatchLog.Timestamp_DTL := #temp_Timestamp;
+	                #o_BatchLog.Actual_Weight := 0.0;
+	                FOR #i := 1 TO 7 DO
+	                    #o_BatchLog.Feeder_Target[#i] := #io_Cmds[#i].Target_Weight;
+	                    #o_BatchLog.Feeder_Actual[#i] := #i_Feeders_Status[#i].Totalized_Weight;
+	                    #o_BatchLog.Actual_Weight := #o_BatchLog.Actual_Weight + #i_Feeders_Status[#i].Totalized_Weight;
+	                END_FOR;
+	                IF #o_BatchLog.Target_Weight > 0.0 THEN
+	                    #o_BatchLog.Deviation_Pct := ((#o_BatchLog.Actual_Weight - #o_BatchLog.Target_Weight) / #o_BatchLog.Target_Weight) * 100.0;
+	                ELSE
+	                    #o_BatchLog.Deviation_Pct := 0.0;
+	                END_IF;
+	                #o_BatchLog.Status := 1; // OK (dừng bình thường)
+	                #o_BatchLog.Duration_sec := #stat_Shift_Duration_sec;
+	                #o_BatchLog.Error_Count := #stat_Error_Count;
+	                #o_BatchLog_Trigger := TRUE;
+	                #stat_BatchLog_Done := TRUE;
+	            END_IF;
+	            
+	            FOR #i := 1 TO 7 DO
+	                #io_Cmds[#i].Start := FALSE;
+	                #io_Cmds[#i].Stop := TRUE;
+	            END_FOR;
+	            #stat_Is_Paused := FALSE;
+	            #stat_State := #MACHINE_STATE_IDLE;
+	        END_IF;
+	    END_IF; 
+	    
+	    // BUMPLESS TRANSFER & AUTO-STOP TẠI CHỖ (HMI)
+	    IF #i_Sys_ManualMode AND NOT #stat_Prev_Sys_ManualMode THEN
+	        FOR #i := 1 TO 7 DO
+	            #o_Manual_Cmd_Clear[#i] := TRUE;
+	            #io_Manual_Cmds[#i].Target_Weight := 0.0;
+	        END_FOR;
+	    ELSE
+	        FOR #i := 1 TO 7 DO
+	            IF #i_Sys_ManualMode AND #i_Feeders_Status[#i].Done AND #io_Manual_Cmds[#i].Start THEN
+	                #o_Manual_Cmd_Clear[#i] := TRUE;
+	            ELSE
+	                #o_Manual_Cmd_Clear[#i] := FALSE;
+	            END_IF;
+	        END_FOR;
+	    END_IF;
+	    #stat_Prev_Sys_ManualMode := #i_Sys_ManualMode;
+	    
+	    FOR #i := 1 TO 7 DO 
+	        // Truyền lệnh tay nếu đang ở chế độ Manual TOÀN CỤC hoặc Feeder đó đang ở chế độ CHẠY THỬ
+	        IF #i_Sys_ManualMode OR #io_Manual_Cmds[#i].Test_Mode THEN
+	            #io_Cmds[#i] := #io_Manual_Cmds[#i];
+	        ELSE
+	            #io_Manual_Cmds[#i].Start := FALSE;
+	            #io_Manual_Cmds[#i].Stop := TRUE;
+	        END_IF;
+	    END_FOR;
+	    
+	    CASE #stat_State OF
+	        #MACHINE_STATE_IDLE:
+	            #stat_Is_Paused := FALSE;
+	            
+	            FOR #i := 1 TO 7 DO
+	                IF #i_Sys_Start THEN
+	                    #io_Cmds[#i].AutoMode := NOT #i_Sys_ManualMode;
+	                    #io_Cmds[#i].Simulation := #i_Sys_Simulation OR #io_Manual_Cmds[#i].Simulation;
+	                    #io_Cmds[#i].Start := FALSE;
+	                    #io_Cmds[#i].Stop := FALSE;
+	                END_IF;
+	            END_FOR;
+	            
+	            IF ((#i_Sys_Start AND NOT #stat_Sys_Start_Edge) OR (#i_Sys_LoadRecipe AND NOT #stat_Sys_LoadRecipe_Edge)) AND NOT #i_HW_Error THEN
+	                // Kiểm tra công thức
+	                #temp_TotalPercent := 0.0;
+	                FOR #i := 1 TO 7 DO
+	                    #temp_TotalPercent := #temp_TotalPercent + #io_Recipe.Material_Percents[#i];
+	                END_FOR;
+	                
+	                #stat_Recipe_Error := FALSE;
+	                #stat_Local_Fault := FALSE;
+	                
+	                IF (#temp_TotalPercent < 0.1) THEN
+	                    #stat_Recipe_Error := TRUE;
+	                ELSIF NOT #i_Sys_Simulation AND ((#temp_TotalPercent < 99.9) OR (#temp_TotalPercent > 100.1)) THEN
+	                    #stat_Recipe_Error := TRUE;
+	                END_IF;
+	                
+	                IF NOT #stat_Recipe_Error THEN
+	                    // Chốt công thức phần trăm
+	                    FOR #i := 1 TO 7 DO
+	                        #stat_Active_Percents[#i] := #io_Recipe.Material_Percents[#i];
+	                    END_FOR;
+	                    
+	                    // === TÍNH TOÁN SETPOINT (gộp CALCULATION) ===
+	                    #stat_BatchLog_Done := FALSE;
+	                    #stat_Shift_Duration_sec := 0.0;
+	                    #stat_Error_Count := 0;
+	                    #stat_Waiting_For_Stop := FALSE;
+	                    #stat_Stop_Timeout := 0.0;
+	                    
+	                    // Tính năng suất tối đa mà hệ thống chịu được
+	                    #temp_TotalFlow_Max := 999999.0;
+	                    FOR #i := 1 TO 7 DO
+	                        IF #stat_Active_Percents[#i] > 0.0 THEN
+	                            #temp_Max_For_This_Feeder := #io_Feeder_Configs[#i].MaxFlowRate / (#stat_Active_Percents[#i] / 100.0);
+	                            IF #temp_Max_For_This_Feeder < #temp_TotalFlow_Max THEN
+	                                #temp_TotalFlow_Max := #temp_Max_For_This_Feeder;
+	                            END_IF;
+	                        END_IF;
+	                    END_FOR;
+	                    
+	                    // Cap Target_FlowRate không vượt quá năng lực hệ thống
+	                    IF #io_Recipe.Target_FlowRate > 0.0 THEN
+	                        IF #io_Recipe.Target_FlowRate < #temp_TotalFlow_Max THEN
+	                            #temp_TotalFlow_Max := #io_Recipe.Target_FlowRate;
+	                        END_IF;
+	                    END_IF;
+	                    
+	                    // Sản lượng mục tiêu
+	                    IF #io_Recipe.Target_Production <= 0.001 THEN
+	                        #temp_TotalWeight := 999999999.0; // Chạy vô hạn
+	                    ELSE
+	                        #temp_TotalWeight := #io_Recipe.Target_Production;
+	                    END_IF;
+	                    
+	                    // Tính MixTime ước lượng (hiển thị HMI)
+	                    IF (#temp_TotalFlow_Max >= 999999.0) OR (#temp_TotalFlow_Max <= 0.0) THEN
+	                        #io_Recipe.MixTime_HMI := 0.0; // Không xác định
+	                    ELSE
+	                        #io_Recipe.MixTime_HMI := (#temp_TotalWeight / #temp_TotalFlow_Max) * 60.0; // phút
+	                    END_IF;
+	                    
+	                    // Phân bổ xuống từng cân
+	                    FOR #i := 1 TO 7 DO
+	                        #io_Cmds[#i].Target_Weight := #temp_TotalWeight * (#stat_Active_Percents[#i] / 100.0);
+	                        
+	                        IF #temp_TotalFlow_Max > 0.0 AND #temp_TotalFlow_Max < 999999.0 THEN
+	                            #io_Cmds[#i].Setpoint_Flow := #temp_TotalFlow_Max * (#stat_Active_Percents[#i] / 100.0);
+	                        ELSE
+	                            #io_Cmds[#i].Setpoint_Flow := 0.0;
+	                        END_IF;
+	                        
+	                        IF NOT #i_Sys_ManualMode THEN
+	                            #io_Manual_Cmds[#i].Target_Weight := #io_Cmds[#i].Target_Weight;
+	                            #io_Manual_Cmds[#i].Setpoint_Flow := #io_Cmds[#i].Setpoint_Flow;
+	                        END_IF;
+	                        
+	                        #io_Cmds[#i].Clear_Totalizer := TRUE;
+	                    END_FOR;
+	                    
+	                    IF #i_Sys_Start AND NOT #stat_Sys_Start_Edge THEN
+	                        #stat_State := #MACHINE_STATE_DOSING;
+	                    END_IF;
+	                END_IF;
+	            END_IF;
+	            
+	        #MACHINE_STATE_DOSING:
+	            #stat_Shift_Duration_sec := #stat_Shift_Duration_sec + #i_CycleTime_sec;
+	            #temp_AllDone := TRUE;
+	            
+	            // === [DYNAMIC SETPOINT UPDATE] TÍNH LẠI SETPOINT KHI ĐANG CHẠY ===
+	            // Tính năng suất tối đa (sử dụng công thức đã chốt stat_Active_Percents)
+	            #temp_TotalFlow_Max := 999999.0;
+	            FOR #i := 1 TO 7 DO
+	                IF #stat_Active_Percents[#i] > 0.0 THEN
+	                    #temp_Max_For_This_Feeder := #io_Feeder_Configs[#i].MaxFlowRate / (#stat_Active_Percents[#i] / 100.0);
+	                    IF #temp_Max_For_This_Feeder < #temp_TotalFlow_Max THEN
+	                        #temp_TotalFlow_Max := #temp_Max_For_This_Feeder;
+	                    END_IF;
+	                END_IF;
+	            END_FOR;
+	            
+	            // Cap Target_FlowRate
+	            IF #io_Recipe.Target_FlowRate > 0.0 THEN
+	                IF #io_Recipe.Target_FlowRate < #temp_TotalFlow_Max THEN
+	                    #temp_TotalFlow_Max := #io_Recipe.Target_FlowRate;
+	                END_IF;
+	            END_IF;
+	            
+	            // Sản lượng mục tiêu (Dynamic)
+	            IF #io_Recipe.Target_Production <= 0.001 THEN
+	                #temp_TotalWeight := 999999999.0;
+	            ELSE
+	                #temp_TotalWeight := #io_Recipe.Target_Production;
+	            END_IF;
+	            
+	            // Tính MixTime ước lượng (hiển thị HMI)
+	            IF (#temp_TotalFlow_Max >= 999999.0) OR (#temp_TotalFlow_Max <= 0.0) THEN
+	                #io_Recipe.MixTime_HMI := 0.0;
+	            ELSE
+	                #io_Recipe.MixTime_HMI := (#temp_TotalWeight / #temp_TotalFlow_Max) * 60.0;
+	            END_IF;
+	            
+	            // Cập nhật phân bổ xuống từng cân
+	            FOR #i := 1 TO 7 DO
+	                #io_Cmds[#i].Target_Weight := #temp_TotalWeight * (#stat_Active_Percents[#i] / 100.0);
+	                
+	                IF #temp_TotalFlow_Max > 0.0 AND #temp_TotalFlow_Max < 999999.0 THEN
+	                    #io_Cmds[#i].Setpoint_Flow := #temp_TotalFlow_Max * (#stat_Active_Percents[#i] / 100.0);
+	                ELSE
+	                    #io_Cmds[#i].Setpoint_Flow := 0.0;
+	                END_IF;
+	                
+	                IF NOT #i_Sys_ManualMode THEN
+	                    #io_Manual_Cmds[#i].Target_Weight := #io_Cmds[#i].Target_Weight;
+	                    #io_Manual_Cmds[#i].Setpoint_Flow := #io_Cmds[#i].Setpoint_Flow;
+	                END_IF;
+	            END_FOR;
+	            
+	            FOR #i := 1 TO 7 DO
+	                // Phát hiện hết nguyên liệu (Starvation)
+	                #stat_Starvation_Timers[#i](IN := #io_Cmds[#i].Start
+	                                            AND (#i_Feeders_Status[#i].Speed_Pct > 5.0)
+	                                            AND (#i_Feeders_Status[#i].Actual_FlowRate < (#io_Cmds[#i].Setpoint_Flow * 0.10))
+	                                            AND (#i_Feeders_Status[#i].Actual_FlowRate < 1.0)
+	                                            AND NOT #i_HW_LocalMode[#i]
+	                                            AND NOT #i_Sys_Simulation
+	                                            AND NOT #i_Feeders_Status[#i].Fault_Encoder, // Không báo Starvation khi đang bị lỗi Encoder (vận tốc = 0)
+	                                            PT := T#15s);
+	                
+	                IF #stat_Starvation_Timers[#i].Q THEN
+	                    #stat_Is_Paused := TRUE;
+	                    #stat_Resume_State := #stat_State;
+	                    #stat_State := #MACHINE_STATE_PAUSED;
+	                    #stat_Error_Count := #stat_Error_Count + 1;
+	                END_IF;
+	                
+	                // Lỗi biến tần / cảm biến / quá tải → Dừng ngay
+	                IF (#i_Feeders_Status[#i].Fault_VFD OR #i_Feeders_Status[#i].Fault_Sensor OR #i_Feeders_Status[#i].Fault_Overload)
+	                    AND #io_Cmds[#i].Start THEN
+	                    #stat_Is_Paused := TRUE;
+	                    #stat_Resume_State := #stat_State;
+	                    #stat_State := #MACHINE_STATE_PAUSED;
+	                    #stat_Error_Count := #stat_Error_Count + 1;
+	                END_IF;
+	                
+	                // Lỗi trượt băng (Encoder) → Cho chạy thêm 1 phút, HMI hiện lỗi ngay
+	                // Nếu vận hành viên Reset được trong 1' → timer reset → chạy tiếp
+	                // Nếu hết 1' vẫn còn lỗi → Pause hệ thống
+	                #stat_MechFault_Timers[#i](IN := #i_Feeders_Status[#i].Fault_Encoder AND #io_Cmds[#i].Start,
+	                                           PT := T#1m);
+	                
+	                IF #stat_MechFault_Timers[#i].Q THEN
+	                    #stat_Is_Paused := TRUE;
+	                    #stat_Resume_State := #stat_State;
+	                    #stat_State := #MACHINE_STATE_PAUSED;
+	                    #stat_Error_Count := #stat_Error_Count + 1;
+	                END_IF;
+	                
+	                // Lỗi Local khi đang chạy Auto
+	                IF #i_HW_LocalMode[#i] 
+	                    AND (#io_Cmds[#i].Target_Weight > 0.1)
+	                    AND NOT #i_Feeders_Status[#i].Done
+	                    AND NOT #i_Sys_Simulation THEN
+	                    #stat_Is_Paused := TRUE;
+	                    #stat_Resume_State := #stat_State;
+	                    #stat_State := #MACHINE_STATE_PAUSED;
+	                    #stat_Local_Fault := TRUE;
+	                END_IF;
+	                
+	                // Điều khiển cân: chạy nếu chưa Done, dừng nếu Done
+	                IF (#io_Cmds[#i].Target_Weight > 0.1) THEN
+	                    IF NOT #i_Feeders_Status[#i].Done THEN
+	                        #io_Cmds[#i].Start := TRUE;
+	                        #io_Cmds[#i].Stop := FALSE;
+	                        #io_Cmds[#i].Clear_Totalizer := FALSE;
+	                        #temp_AllDone := FALSE;
+	                    ELSE
+	                        #io_Cmds[#i].Start := FALSE;
+	                        #io_Cmds[#i].Stop := TRUE;
+	                    END_IF;
+	                ELSE
+	                    #io_Cmds[#i].Start := FALSE;
+	                    #io_Cmds[#i].Stop := TRUE;
+	                END_IF;
+	            END_FOR;
+	            
+	            // Tất cả cân đạt sản lượng → Chờ động cơ dừng hẳn rồi mới ghi log và về IDLE
+	            IF #temp_AllDone AND NOT #stat_BatchLog_Done THEN
+	                // Kích hoạt cờ báo đang chờ dừng hẳn
+	                IF NOT #stat_Waiting_For_Stop THEN
+	                    #stat_Waiting_For_Stop := TRUE;
+	                    #stat_Stop_Timeout := 0.0;
+	                END_IF;
+	                
+	                // Tăng bộ đếm thời gian chờ
+	                #stat_Stop_Timeout := #stat_Stop_Timeout + #i_CycleTime_sec;
+	                
+	                // Kiểm tra xem tất cả các băng tải đã dừng hoàn toàn chưa
+	                // Băng tải coi là dừng hẳn khi: Speed_Pct < 0.1% và Belt_Speed < 0.01 m/s
+	                #temp_AllDone := TRUE; // Tái sử dụng biến temp_AllDone làm cờ báo dừng hẳn
+	                FOR #i := 1 TO 7 DO
+	                    // Chỉ kiểm tra các cân có tham gia chạy trong công thức (Target_Weight > 0.1)
+	                    IF (#io_Cmds[#i].Target_Weight > 0.1) THEN
+	                        IF (#i_Feeders_Status[#i].Speed_Pct > 0.1) OR (#i_Feeders_Status[#i].Belt_Speed > 0.01) THEN
+	                            #temp_AllDone := FALSE; // Vẫn còn cân đang giảm tốc / quay
+	                        END_IF;
+	                    END_IF;
+	                END_FOR;
+	                
+	                // Khi tất cả đã dừng hẳn hoặc quá thời gian chờ 10 giây (Timeout)
+	                IF #temp_AllDone OR (#stat_Stop_Timeout >= 10.0) THEN
+	                    #temp_RetVal := RD_SYS_T(#temp_Timestamp);
+	                    #o_BatchLog.BatchID := #io_Recipe.BatchID;
+	                    #o_BatchLog.Target_Weight := #io_Recipe.Target_Production;
+	                    #o_BatchLog.Timestamp_DTL := #temp_Timestamp;
+	                    #o_BatchLog.Actual_Weight := 0.0;
+	                    FOR #i := 1 TO 7 DO
+	                        #o_BatchLog.Feeder_Target[#i] := #io_Cmds[#i].Target_Weight;
+	                        #o_BatchLog.Feeder_Actual[#i] := #i_Feeders_Status[#i].Totalized_Weight;
+	                        #o_BatchLog.Actual_Weight := #o_BatchLog.Actual_Weight + #i_Feeders_Status[#i].Totalized_Weight;
+	                    END_FOR;
+	                    IF #o_BatchLog.Target_Weight > 0.0 THEN
+	                        #o_BatchLog.Deviation_Pct := ((#o_BatchLog.Actual_Weight - #o_BatchLog.Target_Weight) / #o_BatchLog.Target_Weight) * 100.0;
+	                    ELSE
+	                        #o_BatchLog.Deviation_Pct := 0.0;
+	                    END_IF;
+	                    #o_BatchLog.Status := 1; // OK (Hoàn thành bình thường)
+	                    #o_BatchLog.Duration_sec := #stat_Shift_Duration_sec;
+	                    #o_BatchLog.Error_Count := #stat_Error_Count;
+	                    #o_BatchLog_Trigger := TRUE;
+	                    #stat_BatchLog_Done := TRUE;
+	                    
+	                    // Reset các biến tĩnh phục vụ chờ dừng
+	                    #stat_Waiting_For_Stop := FALSE;
+	                    #stat_Stop_Timeout := 0.0;
+	                    
+	                    FOR #i := 1 TO 7 DO
+	                        #io_Cmds[#i].Start := FALSE;
+	                        #io_Cmds[#i].Stop := TRUE;
+	                    END_FOR;
+	                    #stat_State := #MACHINE_STATE_IDLE;
+	                END_IF;
+	            END_IF;
+	            
+	        #MACHINE_STATE_FAULT:
+	            FOR #i := 1 TO 7 DO
+	                #io_Cmds[#i].Start := FALSE;
+	                #io_Cmds[#i].Stop := TRUE;
+	            END_FOR;
+	            // Sau Reset + hết lỗi HW → chuyển sang PAUSED
+	            // Operator nhấn Pause để Resume hoặc Stop để huỷ
+	            IF #inst_Timer_Reset.Q AND NOT #i_HW_Error THEN
+	                #stat_Is_Paused := TRUE;
+	                #stat_State := #MACHINE_STATE_PAUSED;
+	            END_IF;
+	            
+	        #MACHINE_STATE_PAUSED:
+	            FOR #i := 1 TO 7 DO
+	                #io_Cmds[#i].Start := FALSE;
+	                #io_Cmds[#i].Stop := TRUE;
+	            END_FOR;
+	            IF #i_Sys_Stop THEN
+	                // Ghi nhận mẻ bị HỦY MẺ (Abort) thủ công vào CSDL SQL Server trước khi về IDLE
+	                IF NOT #stat_BatchLog_Done THEN
+	                    #temp_RetVal := RD_SYS_T(#temp_Timestamp);
+	                    #o_BatchLog.BatchID := #io_Recipe.BatchID;
+	                    #o_BatchLog.Target_Weight := #io_Recipe.Target_Production;
+	                    #o_BatchLog.Timestamp_DTL := #temp_Timestamp;
+	                    #o_BatchLog.Actual_Weight := 0.0;
+	                    FOR #i := 1 TO 7 DO
+	                        #o_BatchLog.Feeder_Target[#i] := #io_Cmds[#i].Target_Weight;
+	                        #o_BatchLog.Feeder_Actual[#i] := #i_Feeders_Status[#i].Totalized_Weight;
+	                        #o_BatchLog.Actual_Weight := #o_BatchLog.Actual_Weight + #i_Feeders_Status[#i].Totalized_Weight;
+	                    END_FOR;
+	                    IF #o_BatchLog.Target_Weight > 0.0 THEN
+	                        #o_BatchLog.Deviation_Pct := ((#o_BatchLog.Actual_Weight - #o_BatchLog.Target_Weight) / #o_BatchLog.Target_Weight) * 100.0;
+	                    ELSE
+	                        #o_BatchLog.Deviation_Pct := 0.0;
+	                    END_IF;
+	                    #o_BatchLog.Status := 2; // Ghi nhận Status = 2 (Hủy mẻ thủ công)
+	                    #o_BatchLog.Duration_sec := #stat_Shift_Duration_sec;
+	                    #o_BatchLog.Error_Count := #stat_Error_Count;
+	                    #o_BatchLog_Trigger := TRUE;
+	                    #stat_BatchLog_Done := TRUE;
+	                END_IF;
+	                
+	                #stat_Is_Paused := FALSE;
+	                #stat_State := #MACHINE_STATE_IDLE;
+	            END_IF;
+	            
+	            // RESET GIỮA CA: Chỉ clear lỗi cân, GIỮ NGUYÊN state = PAUSED
+	            // Vận hành viên nhấn Pause tiếp để Resume về DOSING
+	            IF #i_Sys_Reset THEN
+	                FOR #i := 1 TO 7 DO
+	                    #io_Cmds[#i].Reset := TRUE;
+	                END_FOR;
+	                #stat_Local_Fault := FALSE;
+	            END_IF;
+	            
+	    END_CASE;
+	    
+	    // GLOBAL RESET
+	    #inst_Timer_Reset(IN := #i_Sys_Reset, PT := T#500ms);
+	    #o_Global_Reset_Pulse := #inst_Timer_Reset.Q;
+	    
+	    IF #inst_Timer_Reset.Q THEN
+	        #stat_Recipe_Error := FALSE;
+	        #stat_Local_Fault := FALSE;
+	        
+	        // Reset CHỈ xoá dữ liệu khi ở IDLE
+	        IF #stat_State = #MACHINE_STATE_IDLE THEN
+	            #stat_Shift_Duration_sec := 0.0;
+	        END_IF;
+	    END_IF;
+	    
+	    #o_System_State := #stat_State;
+	    #o_Elapsed_Time := DINT_TO_TIME(REAL_TO_DINT(#stat_Shift_Duration_sec * 1000.0));
+	    #stat_Sys_Start_Edge := #i_Sys_Start;
+	    #stat_Sys_LoadRecipe_Edge := #i_Sys_LoadRecipe;
+	    
+	    // UPDATE ERRORS OUT
+	    #o_System_Error := FALSE;
+	    #o_Error_ID := 16#0000;
+	    IF #stat_Recipe_Error OR #stat_Local_Fault THEN
+	        #o_System_Error := TRUE;
+	        IF #stat_Recipe_Error THEN
+	            #o_Error_ID := 16#8000;
+	        END_IF;
+	        IF #stat_Local_Fault THEN
+	            #o_Error_ID.%X14 := TRUE;
+	        END_IF; 
+	    END_IF;
+	END_REGION
+
+END_FUNCTION_BLOCK
+

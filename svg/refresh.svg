@@ -1,0 +1,9 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" width="512"
+    height="512" x="0" y="0" viewBox="0 0 24 24" style="enable-background:new 0 0 512 512" xml:space="preserve"
+    class="">
+    <g>
+        <path
+            d="M12 2.99a9.03 9.03 0 0 1 6.36 2.65l-2.374 2.374h5.83a1.146 1.146 0 0 0 1.146-1.146v-5.83l-2.491 2.491A11.98 11.98 0 0 0 0 12h2.99A9.02 9.02 0 0 1 12 2.99ZM21.01 12a8.994 8.994 0 0 1-15.37 6.36l2.374-2.374H1.993a.956.956 0 0 0-.955.955v6.021l2.491-2.491A11.98 11.98 0 0 0 24 12Z"
+            fill="#ffffff" opacity="1" data-original="#000000" class=""></path>
+    </g>
+</svg>

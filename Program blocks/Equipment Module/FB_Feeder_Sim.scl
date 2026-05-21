@@ -1,0 +1,108 @@
+FUNCTION_BLOCK "FB_Feeder_Sim"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.2
+   VAR_INPUT 
+      i_Enable : Bool; // Kích hoạt chế độ mô phỏng
+      i_VFD_Run : Bool; // Tín hiệu chạy từ VFD driver
+      i_VFD_Speed_Pct : Real; // Tốc độ đặt (%)
+      i_CycleTime_sec : Real := 0.1; // Chu kỳ vòng quét
+   END_VAR
+
+   VAR_OUTPUT 
+      q_HW_Loadcell_Raw : Int; // Giá trị thô Loadcell giả lập (0-27648)
+      q_HW_Encoder_Count : UDInt; // Giá trị xung Encoder giả lập
+      q_HW_VFD_Fault : Bool; // Giả lập lỗi VFD
+   END_VAR
+
+   VAR_IN_OUT 
+      io_Config : "UDT_Feeder_Config"; // Cấu hình thiết bị
+   END_VAR
+
+   VAR 
+      stat_Speed_mps : Real; // Tốc độ hiện tại mô phỏng (m/s)
+      stat_PulseAccumulator : LReal; // Bộ tích lũy xung
+      stat_RandomSeed : UDInt := 12345; // Seed cho bộ sinh số ngẫu nhiên
+   END_VAR
+
+   VAR_TEMP 
+      temp_Dist_m : Real;
+      temp_Circumference_m : Real;
+      temp_PulsesPerMeter : Real;
+      temp_CurrentWeight_kg : Real;
+      temp_RandomReal : Real;
+      temp_Noise : Real;
+   END_VAR
+
+BEGIN
+    // Khởi tạo giá trị mặc định cho các ngõ ra để tránh cảnh báo biên dịch (Might not be initialized)
+    #q_HW_Loadcell_Raw := 0;
+    #q_HW_Encoder_Count := 0;
+    #q_HW_VFD_Fault := FALSE;
+
+    // Nếu không kích hoạt, xóa các giá trị mô phỏng
+    IF NOT #i_Enable THEN
+        #stat_Speed_mps := 0.0;
+        RETURN;
+    END_IF;
+
+    // 0. Bộ sinh số ngẫu nhiên đơn giản (Linear Congruential Generator)
+    // Dùng để tạo các biến thiên phi tuyến tính
+    #stat_RandomSeed := (#stat_RandomSeed * 1103515245 + 12345) AND 16#7FFFFFFF;
+    #temp_RandomReal := UDINT_TO_REAL(#stat_RandomSeed) / 2147483647.0; // Trả về dải 0.0 - 1.0
+
+    // 1. Mô phỏng tốc độ (Dùng bộ lọc để tạo quán tính tăng/giảm tốc)
+    IF #i_VFD_Run THEN
+        // Tiến dần tới tốc độ đặt dựa trên MaxSpeed_mps
+        #stat_Speed_mps := #stat_Speed_mps + (#i_VFD_Speed_Pct / 100.0 * #io_Config.MaxSpeed_mps - #stat_Speed_mps) * 0.1;
+    ELSE
+        // Giảm tốc về 0 khi không chạy
+        #stat_Speed_mps := #stat_Speed_mps + (0.0 - #stat_Speed_mps) * 0.2;
+    END_IF;
+    
+    // Chặn dưới
+    IF #stat_Speed_mps < 0.0001 THEN 
+        #stat_Speed_mps := 0.0;
+    END_IF;
+
+    // 2. Mô phỏng sự biến thiên khối lượng (Weight Fluctuation)
+    // Khối lượng thực tế dao động quanh giá trị Sim_Weight_kg dựa trên Sim_Variation_Pct
+    #temp_CurrentWeight_kg := #io_Config.Sim_Weight_kg * (1.0 + (#temp_RandomReal - 0.5) * 2.0 * #io_Config.Sim_Variation_Pct / 100.0);
+
+    // 3. Mô phỏng xung Encoder (Có thêm Jitter cơ khí nhỏ)
+    // Khoảng cách đi được trong 1 chu kỳ (m)
+    #temp_Dist_m := #stat_Speed_mps * #i_CycleTime_sec;
+    
+    // Chu vi rulo (m)
+    #temp_Circumference_m := 3.14159265 * #io_Config.WheelDiameter / 1000.0;
+    
+    IF #temp_Circumference_m > 0.0 THEN
+        // Số xung trên mỗi mét
+        #temp_PulsesPerMeter := #io_Config.PulsePerRev / #temp_Circumference_m;
+        // Tích lũy xung có kèm jitter 0.1% để mô phỏng sự không ổn định cơ khí
+        #stat_PulseAccumulator := #stat_PulseAccumulator + (#temp_Dist_m * #temp_PulsesPerMeter * (1.0 + (#temp_RandomReal - 0.5) * 0.001));
+    END_IF;
+    
+    // Xuất giá trị xung (UDInt tương ứng với HSC)
+    #q_HW_Encoder_Count := LREAL_TO_UDINT(#stat_PulseAccumulator);
+
+    // 4. Mô phỏng giá trị Loadcell Raw (Có nhiễu tín hiệu analog)
+    
+    // Chuyển đổi sang analog raw (0-27648) và cộng thêm nhiễu trắng (White Noise)
+    IF #io_Config.LoadcellCapacity > 0.0 THEN
+        #temp_Noise := (#temp_RandomReal - 0.5) * 2.0 * #io_Config.Sim_Noise_Pct / 100.0 * 27648.0;
+        #q_HW_Loadcell_Raw := REAL_TO_INT(#temp_CurrentWeight_kg / #io_Config.LoadcellCapacity * 27648.0 + #temp_Noise);
+    ELSE
+        #q_HW_Loadcell_Raw := 0;
+    END_IF;
+    
+    // Giới hạn trong dải analog
+    IF #q_HW_Loadcell_Raw > 27648 THEN
+        #q_HW_Loadcell_Raw := 27648;
+    ELSIF #q_HW_Loadcell_Raw < 0 THEN
+        #q_HW_Loadcell_Raw := 0;
+    END_IF;
+
+    // 5. Lỗi VFD (Có thể mở rộng thêm logic inject lỗi ngẫu nhiên nếu cần)
+    #q_HW_VFD_Fault := FALSE;
+    
+END_FUNCTION_BLOCK

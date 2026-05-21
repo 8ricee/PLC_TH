@@ -1,0 +1,307 @@
+FUNCTION_BLOCK "FB_BatchManager"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT 
+      i_Sys_Start : Bool; // Lệnh khởi động hệ thống toàn cục từ HMI
+      i_Sys_Stop : Bool; // Lệnh dừng hệ thống khẩn cấp/toàn cục từ HMI
+      i_Sys_Pause : Bool; // Lệnh tạm dừng mẻ đang chạy
+      i_Sys_Reset : Bool; // Lệnh xóa lỗi và khôi phục hệ thống
+      i_Sys_LoadRecipe : Bool; // Lệnh nạp công thức nhưng chưa chạy
+      i_Sys_ManualMode : Bool; // Cờ báo chế độ tay toàn cục
+      i_Sys_Simulation : Bool; // Cờ báo chế độ mô phỏng (không cần phần cứng)
+      i_HW_LocalMode : Array[1..7] of Bool; // Mảng công tắc Local/Remote của 7 cân
+      i_CycleTime_sec : Real; // Chu kỳ quét OB30 (giây)
+      i_HW_Error : Bool; // Cờ lỗi phần cứng từ chẩn đoán hệ thống
+      i_HW_Loadcell : Array[1..7] of Int; // Mảng giá trị thô Loadcell 7 cân
+      i_HW_Encoder : Array[1..7] of UDInt; // Mảng xung Encoder 7 cân
+      i_HW_VFD_Fault : Array[1..7] of Bool; // Mảng tín hiệu lỗi biến tần 7 cân
+   END_VAR
+
+   VAR_OUTPUT 
+      o_Manual_Cmd_Clear : Array[1..7] of Bool; // Xung xóa lệnh tay khi chuyển Auto->Manual
+      o_System_State : Int; // Mã trạng thái hệ thống (0=IDLE, 30=DOSING, 90=FAULT, 99=PAUSED)
+      o_System_Paused : Bool; // Cờ báo hệ thống đang tạm dừng
+      o_System_Error : Bool; // Cờ lỗi tổng hợp (SM hoặc Feeder)
+      o_Error_ID : Word; // Mã lỗi dạng Bit-pattern (Bit 0..6 = Feeder 1..7)  
+      o_HW_VFD_Start : Array[1..7] of Bool; // Lệnh khởi động VFD xuất ra 7 cân
+      o_HW_VFD_Speed : Array[1..7] of Int; // Tốc độ Analog VFD xuất ra 7 cân
+      o_Feeders_Status : Array[1..7] of "UDT_Feeder_Status"; // Trạng thái chi tiết 7 cân gửi lên HMI
+      o_Actual_Total_Weight : Real; // Tổng khối lượng cộng dồn của tất cả cân (kg)
+      o_BatchLog : "UDT_BatchRecord"; // Bản ghi ca để ghi log
+      o_BatchLog_Trigger : Bool; // Xung kích hoạt ghi log vào DB_BatchLog
+      o_Elapsed_Time : Time; // Thời gian ca đã chạy
+   END_VAR
+
+   VAR_IN_OUT 
+      io_Manual_Cmds : Array[1..7] of "UDT_Feeder_Cmd"; // Lệnh điều khiển tay từ HMI cho 7 cân
+      io_Calib_Cmds : Array[1..7] of "UDT_Calib"; // Dữ liệu hiệu chuẩn 7 cân
+      io_Feeder_Configs : Array[1..7] of "UDT_Feeder_Config"; // Cấu hình PID/Giới hạn 7 cân
+      io_MechCalib_Cmds : Array[1..7] of "UDT_MechCalib"; // Dữ liệu hiệu chuẩn cơ khí 7 cân
+      io_Recipe : "UDT_Recipe"; // Công thức phối trộn hiện tại 
+   END_VAR
+
+   VAR 
+      inst_StateMachine { S7_SetPoint := 'False'} : "FB_BatchStateMachine"; // Instance máy trạng thái ISA-88
+      inst_Feeders : Array[1..7] of "FB_WeighFeeder"; // 7 Instance cân băng định lượng
+      stat_Cmds { S7_SetPoint := 'False'} : Array[1..7] of "UDT_Feeder_Cmd"; // Lệnh nội bộ từ SM xuống Feeder
+      stat_Feeders_Status : Array[1..7] of "UDT_Feeder_Status"; // Trạng thái nội bộ 7 cân
+      stat_Global_Reset_Pulse : Bool; // Xung Reset toàn cục từ SM
+      stat_Test_Active : Array[1..7] of Bool; // Trạng thái đang thực hiện chạy thử cho từng cân
+   END_VAR
+
+
+   VAR_TEMP 
+      idx : Int; // Biến lặp vòng FOR cho 7 cân
+      temp_TotalWeight : Real; // Tổng khối lượng tích lũy của 7 cân cộng lại
+      temp_System_Error_SM : Bool; // Lỗi hệ thống từ State Machine (trung gian)
+      temp_Error_ID_SM : Word; // Mã lỗi từ State Machine (trung gian)
+   END_VAR
+
+
+
+BEGIN
+    // =============================================================
+    // [PHASE 1] LÀM SẠCH CÁC LỆNH DẠNG XUNG (PULSE COMMANDS)
+    // =============================================================
+    // Đảm bảo các lệnh Start/Stop/Reset/Clear không bị "kẹt" lại từ chu kỳ trước.
+    // Các lệnh này sẽ được SM hoặc Manual HMI gán lại giá trị TRUE nếu cần.
+    FOR #idx := 1 TO 7 DO
+        #stat_Cmds[#idx].Start := FALSE;
+        #stat_Cmds[#idx].Stop := FALSE;
+        #stat_Cmds[#idx].Reset := FALSE;
+        #stat_Cmds[#idx].Clear_Totalizer := FALSE;
+        #stat_Cmds[#idx].PID_Load := FALSE;
+        #stat_Cmds[#idx].PID_Save := FALSE;
+        #stat_Cmds[#idx].PID_Reset := FALSE;
+    END_FOR;
+
+	// =============================================================
+	// [PHASE 2] GỌI MÁY TRẠNG THÁI (STATE MACHINE)
+	// =============================================================
+	#inst_StateMachine(i_Sys_Start := #i_Sys_Start, 
+	                   i_Sys_Stop := #i_Sys_Stop,
+	                   i_Sys_Pause := #i_Sys_Pause,
+	                   i_Sys_Reset := #i_Sys_Reset,
+	                   i_Sys_LoadRecipe := #i_Sys_LoadRecipe,
+	                   i_Sys_ManualMode := #i_Sys_ManualMode,
+	                   i_Sys_Simulation := #i_Sys_Simulation,
+	                   i_HW_Error := #i_HW_Error,
+	                   i_CycleTime_sec := #i_CycleTime_sec,
+	                   i_Feeders_Status := #stat_Feeders_Status,
+	                   i_HW_LocalMode := #i_HW_LocalMode,
+	                   o_System_State => #o_System_State,
+	                   o_System_Paused => #o_System_Paused,
+	                   o_System_Error => #temp_System_Error_SM,
+	                   o_Error_ID => #temp_Error_ID_SM,
+	                   o_BatchLog => #o_BatchLog,
+	                   o_BatchLog_Trigger => #o_BatchLog_Trigger,
+	                   o_Elapsed_Time => #o_Elapsed_Time,
+	                   o_Manual_Cmd_Clear => #o_Manual_Cmd_Clear,
+	                   o_Global_Reset_Pulse => #stat_Global_Reset_Pulse,
+	                   io_Recipe := #io_Recipe,
+	                   io_Feeder_Configs := #io_Feeder_Configs,
+	                   io_Manual_Cmds := #io_Manual_Cmds,
+	                   io_Cmds := #stat_Cmds);
+	
+	// =============================================================
+	// GỌI CÁC INSTANCE BĂNG TẢI (CALL INSTANCES)
+	// ============================================================= 
+	#temp_TotalWeight := 0.0;
+	#o_System_Error := #temp_System_Error_SM;
+	#o_Error_ID := #temp_Error_ID_SM; 
+	 
+	FOR #idx := 1 TO 7 DO
+	    // Kết hợp cờ Simulation toàn cục với cờ Simulation riêng từng cân
+	    #stat_Cmds[#idx].Simulation := #i_Sys_Simulation OR #io_Manual_Cmds[#idx].Simulation;
+	    
+	    
+	    // Ép Auto Mode khi ở chế độ mô phỏng (không cho tay can thiệp)
+	    IF #i_Sys_Simulation AND NOT #i_Sys_ManualMode THEN 
+	        #stat_Cmds[#idx].AutoMode := TRUE;
+	    END_IF;
+	    
+	    // Ép thoát Auto Mode khi ở chế độ Manual (để PID không can thiệp)
+	    IF #i_Sys_ManualMode THEN
+	        #stat_Cmds[#idx].AutoMode := FALSE;
+	    END_IF;
+	    
+	    // Khi có xung Reset toàn cục từ SM: Ép dừng và xoá sạch tất cả 7 cân
+	    IF #stat_Global_Reset_Pulse THEN
+	        #stat_Cmds[#idx].Start := FALSE;
+	        #stat_Cmds[#idx].Stop := TRUE;
+	        #stat_Cmds[#idx].Reset := TRUE;
+	        #stat_Cmds[#idx].Clear_Totalizer := TRUE;
+	    ELSE
+	        // Chế độ bình thường: Kết hợp lệnh Reset/Clear từ SM và từ HMI tay
+	        #stat_Cmds[#idx].Reset := #stat_Cmds[#idx].Reset OR #io_Manual_Cmds[#idx].Reset;
+	        #stat_Cmds[#idx].Clear_Totalizer := #stat_Cmds[#idx].Clear_Totalizer OR #io_Manual_Cmds[#idx].Clear_Totalizer;
+	        #stat_Cmds[#idx].PID_Load := #io_Manual_Cmds[#idx].PID_Load;
+	        #stat_Cmds[#idx].PID_Save := #io_Manual_Cmds[#idx].PID_Save;
+	        #stat_Cmds[#idx].PID_Reset := #io_Manual_Cmds[#idx].PID_Reset;
+	        
+	        // =============================================================
+	        // LOGIC CHẠY THỬ (TEST MODE)
+	        // =============================================================
+	        IF #io_Manual_Cmds[#idx].Test_Mode THEN
+	            #stat_Cmds[#idx].Test_Mode := TRUE;
+	            #stat_Cmds[#idx].Test_Target_Weight := #io_Manual_Cmds[#idx].Test_Target_Weight;
+	            
+	            // Lệnh Start/Stop lấy từ HMI tay
+	            #stat_Cmds[#idx].Start := #io_Manual_Cmds[#idx].Start;
+	            #stat_Cmds[#idx].Stop := #io_Manual_Cmds[#idx].Stop;
+	            
+	            // [PHÁT HIỆN LỆNH CHẠY]: Chỉ bắt đầu chạy thử khi nhấn Start và hệ thống đang dừng (IDLE hoặc PAUSED)
+	            IF #io_Manual_Cmds[#idx].Start AND (#o_System_State = 0 OR #o_System_State = 99) THEN
+	                #stat_Test_Active[#idx] := TRUE;
+	            END_IF;
+	            
+	            // [DỪNG CHẠY THỬ]: Khi nhấn Stop, hoặc đã cân xong (Done), hoặc thoát chế độ Test Mode
+	            IF #io_Manual_Cmds[#idx].Stop OR #stat_Feeders_Status[#idx].Done OR NOT #io_Manual_Cmds[#idx].Test_Mode THEN
+	                #stat_Test_Active[#idx] := FALSE;
+	            END_IF;
+	            
+	            // [KÍCH HOẠT PID]: Chỉ khi đang trong trạng thái chạy thử thực sự
+	            IF #stat_Test_Active[#idx] THEN
+	                #stat_Cmds[#idx].AutoMode := TRUE;
+	                #stat_Cmds[#idx].Setpoint_Flow := #io_Recipe.Target_FlowRate * (#io_Recipe.Material_Percents[#idx] / 100.0);
+	            END_IF;
+	        ELSE
+	            #stat_Test_Active[#idx] := FALSE;
+	            #stat_Cmds[#idx].Test_Mode := FALSE;
+	        END_IF;
+
+	        // Reset lệnh sau khi đã truyền xuống (One-shot / Push-button behavior)
+	        #io_Manual_Cmds[#idx].PID_Load := FALSE;
+	        #io_Manual_Cmds[#idx].PID_Save := FALSE;
+	        #io_Manual_Cmds[#idx].PID_Reset := FALSE;
+	        #io_Manual_Cmds[#idx].Start := FALSE;
+	        #io_Manual_Cmds[#idx].Stop := FALSE;
+	        #io_Manual_Cmds[#idx].Reset := FALSE;
+	        #io_Manual_Cmds[#idx].Clear_Totalizer := FALSE;
+	    END_IF;
+
+	    
+	    // Cập nhật trạng thái chạy từ State Machine xuống từng cân
+	    // Hệ thống đang chạy khi State = 30 (Running) hoặc 10 (Dosing)
+	    #stat_Cmds[#idx].Running := (#o_System_State = 30 OR #o_System_State = 10);
+	    
+	    // 1. GỌI KHỐI ĐIỀU KHIỂN CÂN CHI TIẾT (Kèm theo Object PID tương ứng)
+	    CASE #idx OF
+	        1:
+	            #inst_Feeders[1](i_Cmd := #stat_Cmds[1],
+	                             i_HW_Loadcell_Raw := #i_HW_Loadcell[1],
+	                             i_HW_Encoder_Count := #i_HW_Encoder[1],
+	                             i_HW_VFD_Fault := #i_HW_VFD_Fault[1],
+	                             i_HW_LocalMode := #i_HW_LocalMode[1],
+	                             i_CycleTime_sec := #i_CycleTime_sec,
+	                             io_Status := #stat_Feeders_Status[1],
+	                             io_Calib_Data := #io_Calib_Cmds[1],
+	                             io_Config := #io_Feeder_Configs[1],
+	                             io_MechCalib := #io_MechCalib_Cmds[1],
+	                             io_PID := "PID_Feeder_1", // Truyền thẳng Object
+	                             o_HW_VFD_Start => #o_HW_VFD_Start[1],
+	                             o_HW_VFD_Speed_Ana => #o_HW_VFD_Speed[1]);
+	        2:
+	            #inst_Feeders[2](i_Cmd := #stat_Cmds[2],
+	                             i_HW_Loadcell_Raw := #i_HW_Loadcell[2],
+	                             i_HW_Encoder_Count := #i_HW_Encoder[2],
+	                             i_HW_VFD_Fault := #i_HW_VFD_Fault[2],
+	                             i_HW_LocalMode := #i_HW_LocalMode[2],
+	                             i_CycleTime_sec := #i_CycleTime_sec,
+	                             io_Status := #stat_Feeders_Status[2],
+	                             io_Calib_Data := #io_Calib_Cmds[2],
+	                             io_Config := #io_Feeder_Configs[2],
+	                             io_MechCalib := #io_MechCalib_Cmds[2],
+	                             io_PID := "PID_Feeder_2",
+	                             o_HW_VFD_Start => #o_HW_VFD_Start[2],
+	                             o_HW_VFD_Speed_Ana => #o_HW_VFD_Speed[2]);
+	        3:
+	            #inst_Feeders[3](i_Cmd := #stat_Cmds[3],
+	                             i_HW_Loadcell_Raw := #i_HW_Loadcell[3],
+	                             i_HW_Encoder_Count := #i_HW_Encoder[3],
+	                             i_HW_VFD_Fault := #i_HW_VFD_Fault[3],
+	                             i_HW_LocalMode := #i_HW_LocalMode[3],
+	                             i_CycleTime_sec := #i_CycleTime_sec,
+	                             io_Status := #stat_Feeders_Status[3],
+	                             io_Calib_Data := #io_Calib_Cmds[3],
+	                             io_Config := #io_Feeder_Configs[3],
+	                             io_MechCalib := #io_MechCalib_Cmds[3],
+	                             io_PID := "PID_Feeder_3",
+	                             o_HW_VFD_Start => #o_HW_VFD_Start[3],
+	                             o_HW_VFD_Speed_Ana => #o_HW_VFD_Speed[3]);
+	        4:
+	            #inst_Feeders[4](i_Cmd := #stat_Cmds[4],
+	                             i_HW_Loadcell_Raw := #i_HW_Loadcell[4],
+	                             i_HW_Encoder_Count := #i_HW_Encoder[4],
+	                             i_HW_VFD_Fault := #i_HW_VFD_Fault[4],
+	                             i_HW_LocalMode := #i_HW_LocalMode[4],
+	                             i_CycleTime_sec := #i_CycleTime_sec,
+	                             io_Status := #stat_Feeders_Status[4],
+	                             io_Calib_Data := #io_Calib_Cmds[4],
+	                             io_Config := #io_Feeder_Configs[4],
+	                             io_MechCalib := #io_MechCalib_Cmds[4],
+	                             io_PID := "PID_Feeder_4",
+	                             o_HW_VFD_Start => #o_HW_VFD_Start[4],
+	                             o_HW_VFD_Speed_Ana => #o_HW_VFD_Speed[4]);
+	        5:
+	            #inst_Feeders[5](i_Cmd := #stat_Cmds[5],
+	                             i_HW_Loadcell_Raw := #i_HW_Loadcell[5],
+	                             i_HW_Encoder_Count := #i_HW_Encoder[5],
+	                             i_HW_VFD_Fault := #i_HW_VFD_Fault[5],
+	                             i_HW_LocalMode := #i_HW_LocalMode[5],
+	                             i_CycleTime_sec := #i_CycleTime_sec,
+	                             io_Status := #stat_Feeders_Status[5],
+	                             io_Calib_Data := #io_Calib_Cmds[5],
+	                             io_Config := #io_Feeder_Configs[5],
+	                             io_MechCalib := #io_MechCalib_Cmds[5],
+	                             io_PID := "PID_Feeder_5",
+	                             o_HW_VFD_Start => #o_HW_VFD_Start[5],
+	                             o_HW_VFD_Speed_Ana => #o_HW_VFD_Speed[5]);
+	        6:
+	            #inst_Feeders[6](i_Cmd := #stat_Cmds[6],
+	                             i_HW_Loadcell_Raw := #i_HW_Loadcell[6],
+	                             i_HW_Encoder_Count := #i_HW_Encoder[6],
+	                             i_HW_VFD_Fault := #i_HW_VFD_Fault[6],
+	                             i_HW_LocalMode := #i_HW_LocalMode[6],
+	                             i_CycleTime_sec := #i_CycleTime_sec,
+	                             io_Status := #stat_Feeders_Status[6],
+	                             io_Calib_Data := #io_Calib_Cmds[6],
+	                             io_Config := #io_Feeder_Configs[6],
+	                             io_MechCalib := #io_MechCalib_Cmds[6],
+	                             io_PID := "PID_Feeder_6",
+	                             o_HW_VFD_Start => #o_HW_VFD_Start[6],
+	                             o_HW_VFD_Speed_Ana => #o_HW_VFD_Speed[6]);
+	        7:
+	            #inst_Feeders[7](i_Cmd := #stat_Cmds[7],
+	                             i_HW_Loadcell_Raw := #i_HW_Loadcell[7],
+	                             i_HW_Encoder_Count := #i_HW_Encoder[7],
+	                             i_HW_VFD_Fault := #i_HW_VFD_Fault[7],
+	                             i_HW_LocalMode := #i_HW_LocalMode[7],
+	                             i_CycleTime_sec := #i_CycleTime_sec,
+	                             io_Status := #stat_Feeders_Status[7],
+	                             io_Calib_Data := #io_Calib_Cmds[7],
+	                             io_Config := #io_Feeder_Configs[7],
+	                             io_MechCalib := #io_MechCalib_Cmds[7],
+	                             io_PID := "PID_Feeder_7",
+	                             o_HW_VFD_Start => #o_HW_VFD_Start[7],
+	                             o_HW_VFD_Speed_Ana => #o_HW_VFD_Speed[7]);
+	    END_CASE;
+	    
+	    // Sao chép trạng thái nội bộ ra ngõ ra HMI  
+	    #o_Feeders_Status[#idx] := #stat_Feeders_Status[#idx];
+	    
+	    // Kiểm tra lỗi từng cân và gán vào Bit-pattern Error_ID
+	    IF #stat_Feeders_Status[#idx].Fault THEN 
+	        #o_System_Error := TRUE;
+	        #o_Error_ID := #o_Error_ID OR SHL(IN := WORD#16#0001, N := INT_TO_USINT(#idx - 1));
+	    END_IF;
+	    
+	    // Cộng dồn tổng khối lượng của tất cả 7 cân
+	    #temp_TotalWeight := #temp_TotalWeight + #stat_Feeders_Status[#idx].Totalized_Weight;
+	END_FOR;
+	 
+	// Gán tổng khối lượng toàn bộ mẻ ra ngõ ra HMI 
+	#o_Actual_Total_Weight := #temp_TotalWeight;
+ 
+END_FUNCTION_BLOCK
+

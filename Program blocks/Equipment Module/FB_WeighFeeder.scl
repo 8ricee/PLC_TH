@@ -1,0 +1,334 @@
+FUNCTION_BLOCK "FB_WeighFeeder"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 1.0
+   VAR_INPUT 
+      i_Cmd : "UDT_Feeder_Cmd"; // Các lệnh điều khiển từ HMI hoặc State Machine
+      i_HW_Loadcell_Raw : Int; // Giá trị thô Loadcell đọc từ ngõ vào Analog (0-27648)
+      i_HW_Encoder_Count : UDInt; // Tần số/Xung thô của Encoder từ ngõ vào HSC
+      i_HW_VFD_Fault : Bool; // Tín hiệu báo lỗi phần cứng từ Biến tần (VFD)
+      i_HW_LocalMode : Bool; // Cờ báo thiết bị đang ở chế độ tay (Local/Remote Switch)
+      i_CycleTime_sec : Real := 0.1; // Chu kỳ vòng quét (OB30)
+   END_VAR
+
+   VAR_OUTPUT 
+      o_HW_VFD_Start : Bool; // Lệnh khởi động Biến tần (Digital Output)
+      o_HW_VFD_Speed_Ana : Int; // Lệnh tốc độ Analog cho Biến tần (0-27648)
+      // Giá trị điều khiển cho PID_Compact (truyền lên BatchManager)
+      o_PID_Setpoint : Real;      // Setpoint đã xử lý (kg/h)
+      o_PID_Input : Real;         // Giá trị phản hồi (kg/h)
+   END_VAR
+
+   VAR_IN_OUT 
+      io_Status : "UDT_Feeder_Status"; // Cấu trúc dữ liệu phản hồi trạng thái toàn diện
+      io_Calib_Data : "UDT_Calib"; // Dữ liệu phục vụ quá trình hiệu chuẩn 
+      io_Config : "UDT_Feeder_Config"; // Các thông số cấu hình giới hạn và PID
+      io_MechCalib : "UDT_MechCalib"; // Dữ liệu hiệu chuẩn cơ khí
+      io_PID : PID_Compact; // Technology Object
+   END_VAR
+
+   VAR 
+      stat_FeedState : Int := #STATE_IDLE; // Trạng thái hiện tại của cân (State Machine nội bộ)
+      inst_Filter_LC { S7_SetPoint := 'False'} : "FB_AnalogInput_Filter"; // Khối lọc nhiễu tín hiệu Loadcell
+      inst_SpeedCalc { S7_SetPoint := 'False'} : "FB_Encoder_SpeedCalc"; // Khối tính toán tốc độ băng tải từ Encoder
+      inst_VFD { S7_SetPoint := 'False'} : "FB_VFD_Driver"; // Khối điều khiển xuất lệnh VFD
+      inst_Calib { S7_SetPoint := 'False'} : "FB_Calib_Loadcell"; // Khối tính toán hiệu chuẩn
+      
+      inst_PID { S7_SetPoint := 'False'} : "FB_Feeder_PID"; // Khối thuật toán PID hồi tiếp
+      inst_Totalizer { S7_SetPoint := 'False'} : "FB_Feeder_Totalizer"; // Khối cộng dồn lưu lượng
+      inst_Alarms { S7_SetPoint := 'False'} : "FB_Feeder_Alarms"; // Khối quản lý cảnh báo lưu lượng
+      inst_Sim { S7_SetPoint := 'False'} : "FB_Feeder_Sim"; // Khối mô phỏng vật lý
+      inst_MechCalib { S7_SetPoint := 'False'} : "FB_MechCalib"; // Khối hiệu chuẩn cơ khí
+
+      stat_Final_Speed_Pct : Real; // Tốc độ cuối cùng (%) xuất xuống VFD
+      stat_Prev_Start : Bool; // Trạng thái lệnh Start chu kỳ trước (Bắt sườn)
+      stat_Prev_AutoMode : Bool; // Trạng thái AutoMode chu kỳ trước (Bắt sườn)
+      stat_FlowRate_Filtered : Real; // Lưu lượng qua bộ lọc chống nhiễu nhẹ
+      stat_EncFault_Timer : Real; // Bộ đếm thời gian lỗi Encoder
+      stat_AutoZero_Timer : Real; // Bộ đếm thời gian chạy rỗng để tự động bù Zero
+      stat_HW_VFD_Start_Buffer : Bool; // Buffer lưu trạng thái lệnh chạy VFD
+      stat_HW_VFD_Speed_Buffer : Int; // Buffer lưu giá trị tốc độ VFD
+      stat_MechCalib_Stop : Bool; // Xung dừng từ khối Calib cơ khí
+   END_VAR
+
+   VAR_TEMP 
+      temp_Enable_Drive : Bool; // Cờ cho phép chạy biến tần (Interlock)
+      temp_RawValue : Int; // Giá trị Loadcell dùng để tính toán
+      temp_RawFiltered : Real; // Giá trị Loadcell sau bộ lọc Analog
+      temp_Weight_Total : Real; // Khối lượng tức thời hiện tại (kg)
+      temp_Start_Edge : Bool; // Cờ báo sườn lên lệnh Start
+      temp_Raw_FlowRate : Real; // Lưu lượng thô chưa qua lọc 100ms
+      temp_Clear_Totalizer : Bool; // Cờ báo xoá bộ cộng dồn
+      temp_HW_Loadcell_Sim : Int; // Tín hiệu Loadcell mô phỏng
+      temp_HW_Encoder_Sim : UDInt; // Tín hiệu Encoder mô phỏng
+      temp_HW_VFD_Fault_Sim : Bool; // Tín hiệu lỗi VFD mô phỏng
+      temp_Actual_Running : Bool; // Trạng thái chạy thực tế (Nội bộ)
+      temp_Fault_LocalInBatch : Bool; // Lỗi gạt Local khi đang trong chế độ Mẻ
+      temp_Mode_Changed : Bool; // Cờ báo sự thay đổi giữa Auto/Manual
+   END_VAR
+
+   VAR CONSTANT 
+      STATE_IDLE : Int := 0;
+      STATE_RUNNING : Int := 1;
+      STATE_DONE : Int := 2;
+      STATE_FAULT : Int := 3;
+      STATE_CALIB : Int := 4;
+      STATE_MANUAL : Int := 5;
+   END_VAR
+
+BEGIN 
+    // 0. Khối mô phỏng (Dùng trạng thái VFD từ chu kỳ trước thông qua Buffer) 
+    #inst_Sim(i_Enable := #i_Cmd.Simulation,
+              i_VFD_Run := #stat_HW_VFD_Start_Buffer,
+              i_VFD_Speed_Pct := #stat_Final_Speed_Pct,
+              i_CycleTime_sec := #i_CycleTime_sec,
+              io_Config := #io_Config,
+              q_HW_Loadcell_Raw => #temp_HW_Loadcell_Sim,
+              q_HW_Encoder_Count => #temp_HW_Encoder_Sim,
+              q_HW_VFD_Fault => #temp_HW_VFD_Fault_Sim);
+
+	#temp_Enable_Drive := TRUE;  
+	#temp_Start_Edge := #i_Cmd.Start AND NOT #stat_Prev_Start;
+	#stat_Prev_Start := #i_Cmd.Start;
+	
+	#temp_Mode_Changed := #i_Cmd.AutoMode <> #stat_Prev_AutoMode;
+	#stat_Prev_AutoMode := #i_Cmd.AutoMode;
+	
+	#temp_Clear_Totalizer := #i_Cmd.Clear_Totalizer;
+	// IF NOT #i_Cmd.AutoMode AND #temp_Start_Edge AND #io_Status.Done THEN
+	//     #temp_Clear_Totalizer := TRUE;
+	// END_IF;
+	// [REMOVED]: Không tự động xoá tổng khi nhấn Start ở chế độ tay để tránh mất dữ liệu sản xuất
+	
+	REGION SENSOR_PROCESSING
+	    // Lựa chọn giữa tín hiệu phần cứng thực và tín hiệu mô phỏng
+	    IF #i_Cmd.Simulation THEN
+	        #temp_RawValue := #temp_HW_Loadcell_Sim;
+	    ELSE
+	        #temp_RawValue := #i_HW_Loadcell_Raw;
+	    END_IF;
+	    
+	    #inst_Filter_LC(i_RawValue := #temp_RawValue,
+	                    i_MinScale := 0.0, 
+	                    i_MaxScale := 27648.0,
+	                    i_FilterSize := 20,
+	                    o_ScaledValue => #temp_RawFiltered,
+	                    o_Error => #io_Status.Fault_Sensor);
+	    
+	    // Khóa lệnh Calib Loadcell khi đang hiệu chuẩn cơ khí để tránh nhảy điểm Zero
+	    IF #stat_MechCalib_Stop THEN
+	        #io_Calib_Data.Cmd_SetZero := FALSE;
+	        #io_Calib_Data.Cmd_SetSpan := FALSE;
+	    END_IF;
+	    
+	    #inst_Calib(i_RawInput := #temp_RawFiltered,
+	                i_Config_Capacity := #io_Config.LoadcellCapacity,
+	                i_CycleTime_sec := #i_CycleTime_sec,
+	                io_Data := #io_Calib_Data,
+	                o_CurrentWeight => #temp_Weight_Total,
+	                o_CalibStatus => #io_Status.Calib_Status_Code);
+	                
+	    IF #io_Config.WeighSpan > 0.0 THEN
+	        #io_Status.Load_Density := #temp_Weight_Total / #io_Config.WeighSpan;
+	    ELSE
+	        #io_Status.Load_Density := 0.0;
+	    END_IF;
+	    
+	    #io_Calib_Data.Current_Density := #io_Status.Load_Density;
+	    #io_Calib_Data.Actual_Weight := #temp_Weight_Total;
+	    #io_Calib_Data.Actual_WeighSpan := #io_Config.WeighSpan;
+	    
+	    // [REMOVED] Cho phép hiển thị giá trị âm trên HMI để vận hành viên nhận biết vấn đề
+	    // Trước đây: IF #io_Status.Load_Density < 0.0 THEN → kẹp về 0 → che mất lỗi
+	    
+	    #inst_SpeedCalc(i_HSC_Count := SEL(G := #i_Cmd.Simulation, IN0 := #i_HW_Encoder_Count, IN1 := #temp_HW_Encoder_Sim),
+	                    i_PulsePerRev := #io_Config.PulsePerRev,
+	                    i_WheelDiameter_mm := #io_Config.WheelDiameter,
+	                    i_CycleTime_sec := #i_CycleTime_sec,
+	                    o_Speed_MPM => #io_Status.Belt_Speed);
+	    
+	    #temp_Raw_FlowRate := #io_Status.Load_Density * #io_Status.Belt_Speed * 60.0;
+	    
+	    IF NOT #io_Status.Running THEN
+	        #stat_FlowRate_Filtered := #temp_Raw_FlowRate;
+	    ELSE
+	        #stat_FlowRate_Filtered := #stat_FlowRate_Filtered + (#temp_Raw_FlowRate - #stat_FlowRate_Filtered) * 0.1;
+	    END_IF;
+	    
+	    #io_Status.Actual_FlowRate := #stat_FlowRate_Filtered;
+	    
+	    // Xác định trạng thái "Đang có dòng liệu" (Nội bộ)
+	    // Đếm bất cứ khi nào băng tải quay (dù chạy Auto hay gạt sang Local chạy bằng biến trở)
+	    #temp_Actual_Running := #io_Status.Running OR (#io_Status.Belt_Speed > 0.01);
+	    
+	    // Xóa bộ lọc cũ và override mô phỏng thủ công (Nay đã có FB_Feeder_Sim xử lý)  
+	    
+	    IF #io_Status.Running AND (#stat_Final_Speed_Pct > 5.0) AND (#io_Status.Belt_Speed < 0.001) AND NOT #i_Cmd.Simulation AND NOT #i_HW_LocalMode THEN
+	        #stat_EncFault_Timer := #stat_EncFault_Timer + #i_CycleTime_sec;
+	        IF #stat_EncFault_Timer > 5.0 THEN
+	            #io_Status.Fault_Encoder := TRUE;
+	        END_IF;
+	    ELSE
+	        #stat_EncFault_Timer := 0.0;
+	        // Tự động giải trừ lỗi Encoder khi tốc độ phản hồi bình thường hoặc khi dừng chạy cân
+	        #io_Status.Fault_Encoder := FALSE;
+	    END_IF;
+	    
+	    // (Auto-Zero Tracking đã được gỡ bỏ theo yêu cầu - xử lý trực tiếp trên đầu cân)
+	    
+	END_REGION
+	
+	REGION TOTALIZER
+	    #inst_Totalizer(i_Clear_Totalizer := #temp_Clear_Totalizer OR (#i_Cmd.Test_Mode AND #temp_Start_Edge),
+	                    i_Target_Weight := #i_Cmd.Target_Weight,
+	                    i_Raw_FlowRate := #temp_Raw_FlowRate,
+	                    i_CycleTime_sec := #i_CycleTime_sec,
+	                    i_AutoMode := #i_Cmd.AutoMode,
+	                    i_Running := #temp_Actual_Running,
+	                    i_TestMode := #i_Cmd.Test_Mode,
+	                    i_TestTarget := #i_Cmd.Test_Target_Weight,
+	                    io_Config := #io_Config,
+	                    o_Totalized_Weight => #io_Status.Totalized_Weight,
+	                    o_TestTotal => #io_Status.Test_Total_Weight,
+	                    o_Done => #io_Status.Done,
+	                    o_Dribble_Active => #io_Status.Dribble_Active);
+	END_REGION
+
+	REGION CONTROL_ALGORITHM
+	    #inst_PID(i_AutoMode := #i_Cmd.AutoMode,
+	              i_Start := #i_Cmd.Start,
+	              i_Running := #stat_HW_VFD_Start_Buffer,
+	              i_Done := #io_Status.Done,
+	              i_Setpoint_Flow := #i_Cmd.Setpoint_Flow,
+	              i_ManualSpeed_HMI := #i_Cmd.ManualSpeed_HMI,
+	              i_Actual_FlowRate := #io_Status.Actual_FlowRate,
+	              i_Dribble_Active := #io_Status.Dribble_Active,
+	              i_CycleTime_sec := #i_CycleTime_sec, 
+	              i_Reset := #i_Cmd.Reset,
+				  i_PID_Reset:= #i_Cmd.PID_Reset,
+	              i_PID_Load := #i_Cmd.PID_Load,
+	              i_PID_Save := #i_Cmd.PID_Save,
+	              io_Config := #io_Config,
+	              io_PID := #io_PID,
+	              o_Speed_Pct => #stat_Final_Speed_Pct,
+	              o_PID_Setpoint => #o_PID_Setpoint,
+	              o_PID_Input => #o_PID_Input,
+	              o_State => #io_Status.PID_State,
+	              o_Error => #io_Status.Fault_PID);
+	END_REGION
+	
+	REGION OUTPUT_PROCESSING
+	    // --- ĐIỀU KIỆN LỖI GẠT LOCAL ---
+	    // Khi đang chạy Auto có target mà gạt Local → lỗi
+	    #temp_Fault_LocalInBatch := (#i_Cmd.Target_Weight > 0.1) AND #i_HW_LocalMode AND #i_Cmd.AutoMode;
+
+	    // --- OVERRIDE TỐC ĐỘ KHI ĐO CƠ KHÍ ---
+	    IF #i_Cmd.Test_MechCalib_Mode AND #i_Cmd.Test_Mode THEN
+	        #stat_Final_Speed_Pct := #io_MechCalib.CalibSpeed_Pct;
+	        IF #stat_Final_Speed_Pct > 100.0 THEN
+	            #stat_Final_Speed_Pct := 100.0;
+	        END_IF;
+	        IF #stat_Final_Speed_Pct < 0.0 THEN
+	            #stat_Final_Speed_Pct := 0.0;
+	        END_IF;
+	    END_IF;
+
+	    // --- ĐIỀU KIỆN CẤP PHÉP CHẠY (INTERLOCK) ---
+	    IF (#io_Status.Fault_VFD OR #io_Status.Fault_Overload OR #io_Status.Fault_Sensor) 
+	       OR #temp_Fault_LocalInBatch
+	       OR (#io_Status.Done AND (#i_Cmd.Target_Weight > 0.1) AND NOT #i_Cmd.Clear_Totalizer) 
+	       OR (#i_Cmd.Test_Mode AND NOT #i_Cmd.Test_MechCalib_Mode AND (#i_Cmd.Test_Target_Weight <= 0.001)) // Không cho chạy thử liệu nếu khối lượng đích = 0
+	       OR (#i_Cmd.Test_Mode AND NOT #i_Cmd.Test_MechCalib_Mode AND (#i_Cmd.Test_Target_Weight > 0.001) AND (#io_Status.Test_Total_Weight >= (#i_Cmd.Test_Target_Weight - #io_Config.InFlight_kg))) 
+	       OR #i_Cmd.Stop 
+	       OR #stat_MechCalib_Stop
+	       OR #i_HW_LocalMode 
+	    THEN
+	        #temp_Enable_Drive := FALSE;
+	    ELSE
+	        #temp_Enable_Drive := TRUE;
+	    END_IF;
+	    
+	    
+	    // Lỗi Quá tải Loadcell (Instantaneous)
+	    #io_Status.Fault_Overload := (#temp_Weight_Total > #io_Config.LoadcellCapacity) AND (#io_Config.LoadcellCapacity > 0.0);
+	    
+	    #inst_VFD(i_Enable := #temp_Enable_Drive,
+	              i_StartCmd := #i_Cmd.Start OR (#io_MechCalib.Cmd_Start AND #i_Cmd.Test_Mode AND #i_Cmd.Test_MechCalib_Mode),
+	              i_StopCmd := #i_Cmd.Stop OR #temp_Mode_Changed OR #stat_MechCalib_Stop OR #io_MechCalib.Cmd_Stop,
+	              i_ResetCmd := #i_Cmd.Reset,
+	              i_SpeedSetpoint_Pct := #stat_Final_Speed_Pct,
+	              i_FaultInput := SEL(G := #i_Cmd.Simulation, IN0 := #i_HW_VFD_Fault, IN1 := #temp_HW_VFD_Fault_Sim),
+	              o_RunCmd => #stat_HW_VFD_Start_Buffer,
+	              o_AnalogSpeed => #stat_HW_VFD_Speed_Buffer,
+	              o_Status_Running => #io_Status.Running,
+	              o_Status_Fault => #io_Status.Fault_VFD);
+
+	    // Gán giá trị từ Buffer ra ngõ ra thực tế
+	    #o_HW_VFD_Start := #stat_HW_VFD_Start_Buffer;
+	    #o_HW_VFD_Speed_Ana := #stat_HW_VFD_Speed_Buffer;
+	    
+	    // Cập nhật tốc độ hiển thị lên HMI (Bao gồm cả khi chạy thường và khi hiệu chuẩn)
+	    #io_Status.Speed_Pct := #stat_Final_Speed_Pct;
+
+	    // Tổng hợp lỗi hệ thống (Bất kỳ lỗi nào cũng gây dừng máy) 
+	    #io_Status.Fault := #io_Status.Fault_VFD
+	    OR #io_Status.Fault_Overload
+	    OR #io_Status.Fault_Sensor
+	    OR #io_Status.Fault_Encoder
+	    OR #temp_Fault_LocalInBatch;
+	END_REGION
+	
+	REGION DEVIATION_ALARM
+	    #inst_Alarms(i_AutoMode := #i_Cmd.AutoMode,
+	                 i_Running := #temp_Actual_Running,
+	                 i_Setpoint_Flow := #i_Cmd.Setpoint_Flow,
+	                 i_Actual_FlowRate := #io_Status.Actual_FlowRate,
+	                 i_Simulation := #i_Cmd.Simulation, 
+	                 i_LocalMode := #i_HW_LocalMode,
+	                 i_CycleTime_sec := #i_CycleTime_sec,
+	                 io_Config := #io_Config,
+	                 o_Alarm_DevHigh => #io_Status.Alarm_DevHigh,
+	                 o_Alarm_DevLow => #io_Status.Alarm_DevLow);
+	END_REGION
+	
+	REGION MECHANICAL_CALIBRATION
+	    #inst_MechCalib(i_HSC_Count := SEL(G := #i_Cmd.Simulation, IN0 := #i_HW_Encoder_Count, IN1 := #temp_HW_Encoder_Sim),
+	                    i_Fault_Encoder := #io_Status.Fault_Encoder,
+	                    i_Cmd_Stop := #i_Cmd.Stop,
+	                    io_Data := #io_MechCalib,
+	                    io_Config := #io_Config,
+	                    q_Cmd_Stop => #stat_MechCalib_Stop);
+	END_REGION
+	
+	REGION STATE_EVALUATION
+	    IF #io_Status.Fault THEN
+	        #stat_FeedState := #STATE_FAULT;
+	    ELSIF #io_Calib_Data.Cmd_SetZero OR #io_Calib_Data.Cmd_SetSpan OR (#io_Status.Calib_Status_Code = 1) OR (#io_Status.Calib_Status_Code = 2) OR (#io_Status.Calib_Status_Code = 3) THEN
+	        #stat_FeedState := #STATE_CALIB;
+	    ELSIF #io_Status.Done THEN
+	        #stat_FeedState := #STATE_DONE;
+	    ELSIF #io_Status.Running THEN
+	        IF #i_Cmd.AutoMode THEN
+	            #stat_FeedState := #STATE_RUNNING;
+	        ELSE
+	            #stat_FeedState := #STATE_MANUAL; 
+	        END_IF;
+	    ELSE
+	        #stat_FeedState := #STATE_IDLE;
+	    END_IF;
+	END_REGION
+	
+	REGION HMI_MAPPING 
+	    #io_Status.AutoMode_Act := #i_Cmd.AutoMode;
+	    #io_Status.LocalMode_Act := #i_HW_LocalMode;
+	    #io_Status.Feeder_State_Code := #stat_FeedState;
+	    
+	    #io_Status.FaultWord.%X0 := #io_Status.Fault_VFD;
+	    #io_Status.FaultWord.%X1 := #io_Status.Fault_Overload;
+	    #io_Status.FaultWord.%X2 := #io_Status.Fault_Sensor;
+	    #io_Status.FaultWord.%X3 := #io_Status.Fault_Encoder;
+	    #io_Status.FaultWord.%X4 := #temp_Fault_LocalInBatch; // Lỗi gạt Local khi chạy mẻ 
+	    #io_Status.FaultWord.%X5 := #io_Status.Alarm_DevHigh;
+	    #io_Status.FaultWord.%X6 := #io_Status.Alarm_DevLow;
+	END_REGION
+END_FUNCTION_BLOCK
+

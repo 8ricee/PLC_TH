@@ -1,0 +1,404 @@
+<!DOCTYPE svg PUBLIC "-//SIEMENS//DTD SVG 1.0 TIA-HMI//EN" "http://tia.siemens.com/graphics/svg/1.4/dtd/svg14-hmi.dtd">
+<!-- SIMATIC WINCC Copyright (C) Siemens AG 2017. All Rights Reserved. -->
+
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:hmi-bind--xlink="http://svg.siemens.com/hmi/bind/xlink/" xmlns:hmi="http://svg.siemens.com/hmi/"
+  xmlns:hmi-bind="http://svg.siemens.com/hmi/bind/" xmlns:hmi-element="http://svg.siemens.com/hmi/element/"
+  xmlns:hmi-feature="http://svg.siemens.com/hmi/feature/" xmlns:hmi-event="http://svg.siemens.com/hmi/event/"
+  viewBox="0 0 800 450" preserveAspectRatio="none">
+
+  <hmi:self type="widget" displayName="Feeder" name="extended.Feeder" version="1.0.1" performanceClass="L">
+    <hmi:paramDef name="BasicColor" type="HmiColor" default="0xFF111827" />
+    <hmi:paramDef name="Running" type="boolean" default="false" />
+    <hmi:paramDef name="Fault" type="boolean" default="false" />
+    <hmi:paramDef name="Fault_VFD" type="boolean" default="false" />
+    <hmi:paramDef name="Fault_Overload" type="boolean" default="false" />
+    <hmi:paramDef name="Fault_Sensor" type="boolean" default="false" />
+    <hmi:paramDef name="Fault_Encoder" type="boolean" default="false" />
+    <hmi:paramDef name="Done" type="boolean" default="false" />
+  </hmi:self>
+    <!-- Khai báo các định nghĩa dùng chung: màu nền, symbol mũi tên quay, clipPath và mask cho hiệu ứng làm mờ -->
+    <defs>
+        <hmi:localDef name="Color" type="HmiColor" hmi-bind:value="{{ParamProps.BasicColor}}" />
+        <solidColor id="bgColor" solid-color="#111827" />
+        <color id="neonGreen" color="#4ade80" />
+
+        <symbol id="cycle-arrows" viewBox="0 0 100 100">
+            <path
+                d="M97.232 84.38a3.39 3.39 0 0 1-3.393 3.392H77.627c-.497 0-.961-.119-1.387-.31-.089-.04-.157-.116-.243-.164a3.337 3.337 0 0 1-.893-.701c-.033-.038-.083-.05-.115-.09-.085-.107-.11-.235-.18-.348a3.257 3.257 0 0 1-.355-.685c-.068-.2-.092-.4-.122-.608-.025-.165-.098-.314-.098-.487V68.167c0-1.875 1.517-3.393 3.393-3.393s3.392 1.518 3.392 3.393v8.131c6.202-7.293 9.695-16.523 9.695-26.298C90.714 27.549 72.451 9.286 50 9.286c-1.09 0-2.174.043-3.24.129-1.896.126-3.506-1.246-3.655-3.111a3.395 3.395 0 0 1 3.111-3.655A47.58 47.58 0 0 1 50 2.5c26.192 0 47.5 21.308 47.5 47.5 0 11.543-4.179 22.431-11.58 30.986h7.919a3.39 3.39 0 0 1 3.393 3.393zM53.24 90.584c-1.066.086-2.15.13-3.24.13C27.549 90.714 9.286 72.45 9.286 50c0-9.775 3.493-19.005 9.695-26.298v8.131a3.39 3.39 0 0 0 3.392 3.393 3.39 3.39 0 0 0 3.393-3.393V15.621c0-.173-.073-.322-.098-.488-.03-.207-.054-.406-.122-.606a3.266 3.266 0 0 0-.356-.688c-.07-.112-.094-.24-.18-.345-.034-.043-.085-.061-.122-.102-.174-.197-.381-.344-.597-.496-.151-.106-.288-.225-.452-.305-.196-.095-.408-.137-.623-.193-.224-.06-.439-.122-.67-.135-.06-.003-.111-.035-.173-.035H6.161a3.39 3.39 0 0 0-3.393 3.393 3.39 3.39 0 0 0 3.393 3.393h7.919C6.679 27.569 2.5 38.457 2.5 50c0 26.192 21.308 47.5 47.5 47.5 1.276 0 2.538-.05 3.784-.15a3.395 3.395 0 0 0 3.111-3.654c-.149-1.865-1.726-3.234-3.655-3.11z" />
+        </symbol>
+
+        <clipPath id="materialClip">
+            <rect x="200" y="-20" width="360" height="220" rx="20" />
+        </clipPath>
+        <linearGradient id="fadeGradient" gradientUnits="userSpaceOnUse" x1="480" y1="0" x2="560" y2="0">
+            <stop offset="0" stop-color="white" />
+            <stop offset="1" stop-color="black" />
+        </linearGradient>
+
+        <mask id="fadeMask">
+            <rect x="200" y="0" width="370" height="450" fill="url(#fadeGradient)" />
+        </mask>
+
+        <style>
+            /* Default State */
+            .device-status {
+                fill: #4b5563;
+                /* Grey */
+                stroke: #9ca3af;
+            }
+
+            .status-led {
+                fill: #6b7280;
+                /* Grey/Off */
+                transition: fill 0.3s ease;
+            }
+
+            /* Running State - Green */
+            .status-running .status-led {
+                fill: #4ade80;
+            }
+
+            .status-running .device-label {
+                fill: #4ade80;
+            }
+
+            /* Stop State - Grey and Paused */
+            .status-stop .status-led,
+            .status-stop .frame-border,
+            .status-stop .motor-box,
+            .status-stop .encoder-box,
+            .status-stop .motor-shaft,
+            .status-stop .encoder-shaft {
+                stroke: #6b7280 !important;
+                fill-opacity: 0.1;
+            }
+
+            .status-stop .status-led {
+                fill: #6b7280 !important;
+                fill-opacity: 1;
+            }
+
+            .status-stop .device-label,
+            .status-stop .motor-label,
+            .status-stop .encoder-label {
+                fill: #6b7280 !important;
+            }
+
+            .status-stop .material-path,
+            .status-stop .material-rect,
+            .status-stop .conveyor-line-top,
+            .status-stop .conveyor-line-bottom,
+            .status-stop #drive-pulley-rotor {
+                animation-play-state: paused;
+                fill: #6b7280 !important;
+                /* Material turns grey */
+                stroke: #6b7280 !important;
+                /* Lines turn grey */
+            }
+
+            /* Running State - Green and Playing */
+            .status-running .status-led,
+            .status-running .frame-border,
+            .status-running .motor-box,
+            .status-running .encoder-box,
+            .status-running .motor-shaft,
+            .status-running .encoder-shaft {
+                stroke: #4ade80 !important;
+            }
+
+            .status-running .status-led {
+                fill: #4ade80 !important;
+            }
+
+            .status-running .device-label,
+            .status-running .motor-label,
+            .status-running .encoder-label {
+                fill: #4ade80 !important;
+            }
+
+            .status-running .material-path,
+            .status-running .material-rect,
+            .status-running .conveyor-line-top,
+            .status-running .conveyor-line-bottom,
+            .status-running #drive-pulley-rotor {
+                animation-play-state: running;
+                fill: #4ade80 !important;
+                stroke: #4ade80 !important;
+            }
+
+            /* Done State - Yellow (#facc15) and Paused */
+            .status-done .status-led,
+            .status-done .frame-border,
+            .status-done .motor-box,
+            .status-done .encoder-box,
+            .status-done .motor-shaft,
+            .status-done .encoder-shaft {
+                stroke: #facc15 !important;
+                fill-opacity: 0.1;
+            }
+
+            .status-done .status-led {
+                fill: #facc15 !important;
+                fill-opacity: 1;
+            }
+
+            .status-done .device-label,
+            .status-done .motor-label,
+            .status-done .encoder-label {
+                fill: #facc15 !important;
+            }
+
+            .status-done .material-path,
+            .status-done .material-rect,
+            .status-done .conveyor-line-top,
+            .status-done .conveyor-line-bottom,
+            .status-done #drive-pulley-rotor {
+                animation-play-state: paused;
+                fill: #facc15 !important;
+                stroke: #facc15 !important;
+            }
+
+            /* Fault State - Red Blinking (Conveyor frame) */
+            .status-fault .frame-border {
+                stroke: #ef4444 !important;
+                fill: none !important;
+                animation: blink 1s infinite;
+            }
+
+            /* Individual Part Faults */
+            .part-fault .motor-box,
+            .part-fault .encoder-box,
+            .part-fault .motor-shaft,
+            .part-fault .encoder-shaft {
+                stroke: #ef4444 !important;
+                fill-opacity: 0.1 !important;
+                animation: blink 1s infinite;
+            }
+            
+            .part-fault .status-led {
+                stroke: #ef4444 !important;
+                fill: #ef4444 !important;
+                fill-opacity: 1 !important;
+                animation: blink 1s infinite;
+            }
+
+            .part-fault .device-label,
+            .part-fault .motor-label,
+            .part-fault .encoder-label {
+                fill: #ef4444 !important;
+            }
+
+            @keyframes blink {
+
+                0%,
+                100% {
+                    opacity: 1;
+                }
+
+                50% {
+                    opacity: 0.5;
+                }
+            }
+
+            /* Material Animations */
+            @keyframes material-flow {
+                from {
+                    transform: translateX(0);
+                }
+
+                to {
+                    transform: translateX(200px);
+                }
+            }
+
+            @keyframes material-pulse {
+
+                0%,
+                100% {
+                    opacity: 0.8;
+                }
+
+                50% {
+                    opacity: 0.6;
+                }
+            }
+
+            .material-path {
+                animation: material-flow 2s linear infinite;
+            }
+
+            .material-rect {
+                animation: material-pulse 0.2s linear infinite;
+            }
+
+            /* Fault State - Stop Material and Turn Red */
+            .status-fault .material-path,
+            .status-fault .material-rect {
+                fill: #ef4444 !important;
+                animation-play-state: paused;
+            }
+
+            /* Conveyor belt lines animation */
+            @keyframes dash-flow {
+                from {
+                    stroke-dashoffset: 10;
+                }
+
+                to {
+                    stroke-dashoffset: 0;
+                }
+            }
+
+            /* Conveyor belt lines animation */
+            @keyframes dash-flow {
+                from {
+                    stroke-dashoffset: 10;
+                }
+
+                to {
+                    stroke-dashoffset: 0;
+                }
+            }
+
+            @keyframes dash-flow-reverse {
+                from {
+                    stroke-dashoffset: 0;
+                }
+
+                to {
+                    stroke-dashoffset: 10;
+                }
+            }
+
+            .conveyor-line-top {
+                animation: dash-flow 0.5s linear infinite;
+            }
+
+            .conveyor-line-bottom {
+                animation: dash-flow-reverse 0.5s linear infinite;
+            }
+
+            /* Drive pulley rotation animation */
+            @keyframes rotate-pulley {
+                from {
+                    transform: rotate(0deg);
+                }
+
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+
+            #drive-pulley-rotor {
+                animation: rotate-pulley 2s linear infinite;
+                transform-box: fill-box;
+                transform-origin: center;
+            }
+
+            /* Pause Conveyor and Pulley on Fault */
+            .status-fault .conveyor-line-top,
+            .status-fault .conveyor-line-bottom,
+            .status-fault #drive-pulley-rotor {
+                fill: #ef4444 !important;
+                stroke: #ef4444 !important;
+                animation-play-state: paused;
+            }
+        </style>
+    </defs>
+
+    <g id="main-assembly" transform="translate(50, 50)" hmi-bind:class="{{ ParamProps.Fault ? 'status-fault status-stop' : (ParamProps.Running ? 'status-running' : (ParamProps.Done ? 'status-done' : 'status-stop')) }}">
+
+        <!-- Hệ thống băng tải chính: bao gồm khung băng tải và dây băng -->
+        <g id="conveyor-system">
+            <rect class="frame-border" x="130" y="135" width="440" height="70" rx="35" fill="none" stroke="#4ade80"
+                stroke-width="4" />
+            <rect x="135" y="140" width="430" height="60" rx="30" fill="#1f2937" stroke="none" opacity="0.5" />
+
+            <!-- Cụm cân định lượng (Load Cell): bao gồm cảm biến lực và giá đỡ con lăn cân -->
+            <g id="weigh-scale-assembly" transform="translate(380, 155)" hmi-bind:class="{{ (ParamProps.Fault_Sensor || ParamProps.Fault_Overload) ? 'part-fault' : '' }}">
+                <circle cx="20" cy="-10" r="8" fill="#4b5563" stroke="#9ca3af" stroke-width="1" />
+                <rect x="15" y="-10" width="10" height="15" fill="#4b5563" />
+                <path d="M-20,5 L40,5 L40,20 L30,20 L25,15 L15,15 L10,20 L-20,20 Z" fill="#d1d5db" stroke="#6b7280"
+                    stroke-width="1" />
+
+                <rect x="-20" y="5" width="20" height="15" fill="#9ca3af" stroke="none" />
+                <circle cx="-10" cy="10" r="2" fill="#374151" />
+                <circle cx="-10" cy="15" r="2" fill="#374151" />
+
+                <circle id="load-cell-status-led" class="status-led" cx="20" cy="5" r="3" fill="#4ade80" />
+
+                <path d="M-20,12 Q-30,12 -30,25 L-30,50" fill="none" stroke="#6b7280" stroke-width="1.5"
+                    stroke-dasharray="2,1" />
+
+                <text id="load-cell-label" class="device-label" x="10" y="45" text-anchor="middle" fill="#9ca3af"
+                    font-family="monospace" font-size="16" font-weight="bold">LOAD
+                    CELL</text>
+            </g>
+
+            <!-- Hiệu ứng vạch kẻ băng tải đang chạy: tạo cảm giác băng tải đang chuyển động -->
+            <path class="conveyor-line-top" d="M140,140 L560,140" stroke="#4ade80" stroke-width="2"
+                stroke-dasharray="5,5" opacity="0.5" />
+            <path class="conveyor-line-bottom" d="M140,200 L560,200" stroke="#4ade80" stroke-width="2"
+                stroke-dasharray="5,5" opacity="0.5" />
+
+            <!-- Rulo bị động (Tail Pulley): nằm ở phía đuôi băng tải -->
+            <g transform="translate(165, 170)">
+                <circle r="30" fill="#374151" stroke="#4b5563" stroke-width="2" />
+                <path d="M-28,0 L28,0 M0,-28 L0,28" stroke="#4b5563" stroke-width="2" opacity="0.7" />
+                <circle r="10" fill="#1f2937" stroke="#4b5563" stroke-width="2" />
+            </g>
+
+            <!-- Rulo chủ động (Drive Pulley): nằm ở đầu băng tải, có hiệu ứng quay tròn -->
+            <g id="drive-pulley" transform="translate(535, 170)">
+                <g id="drive-pulley-rotor">
+                    <circle r="32" fill="#374151" stroke="#111827" stroke-width="4" />
+                    <circle r="30" fill="#374151" stroke="#4b5563" stroke-width="2" />
+                    <path d="M-28,0 L28,0 M0,-28 L0,28" stroke="#4b5563" stroke-width="2" opacity="0.7" />
+                    <use href="#cycle-arrows" x="-21" y="-21" width="42" height="42" fill="#facc15" />
+                    <circle r="10" fill="#1f2937" stroke="#4b5563" stroke-width="2" />
+                </g>
+            </g>
+        </g>
+
+        <!-- Động cơ (Motor): Thiết bị truyền động cho băng tải -->
+        <g transform="translate(630, 145)" hmi-bind:class="{{ ParamProps.Fault_VFD ? 'part-fault' : '' }}">
+            <line class="motor-shaft" x1="-65" y1="25" x2="0" y2="25" stroke="#4ade80" stroke-width="3" />
+            <rect class="motor-box" width="60" height="50" rx="8" fill="#111827" stroke="#4ade80" stroke-width="2" />
+            <text class="motor-label" x="30" y="32" text-anchor="middle" fill="#4ade80" font-family="Arial, sans-serif"
+                font-size="24" font-weight="bold">M</text>
+            <text x="30" y="70" text-anchor="middle" fill="#9ca3af" font-family="monospace" font-size="14">MOTOR</text>
+        </g>
+
+        <!-- Bộ mã hóa (Encoder): Thiết bị đo tốc độ băng tải -->
+        <g transform="translate(120, 240)" hmi-bind:class="{{ ParamProps.Fault_Encoder ? 'part-fault' : '' }}">
+            <path class="encoder-shaft" d="M45,-40 L45,0 L30,0" fill="none" stroke="#6b7280" stroke-width="2" />
+            <rect class="encoder-box" width="50" height="50" rx="8" fill="#111827" stroke="#6b7280" stroke-width="2" />
+            <text class="encoder-label" x="25" y="32" text-anchor="middle" fill="#6b7280"
+                font-family="Arial, sans-serif" font-size="24" font-weight="bold">E</text>
+            <text x="25" y="70" text-anchor="middle" fill="#9ca3af" font-family="monospace"
+                font-size="14">ENCODER</text>
+        </g>
+
+        <!-- Hiệu ứng dòng chảy nguyên liệu: mô phỏng nguyên liệu chảy trên băng tải và mờ dần ở cuối -->
+        <g id="material-group" clip-path="url(#materialClip)" mask="url(#fadeMask)">
+            <rect class="material-rect" x="200" y="120" width="40" height="20" fill="#4ade80" opacity="0.8" />
+            <path class="material-path" d="M-100,126 q25,-6 50,-3 t50,-3 t50,3 t50,3 t50,-3 t50,-3 t50,3 t50,3 t50,-3 t50,-3 t50,3 t50,3 t50,-3 t50,-3 t50,3 t50,3
+                      V133 H-100 Z" fill="#4ade80" opacity="1" />
+        </g>
+
+        <!-- Phễu chứa liệu (Hopper): Nơi cấp liệu đầu vào -->
+        <g id="hopper-2d-flat" transform="translate(0, -10)">
+            <path d="M110,20 L330,20 L240,120 L200,120 Z" fill="#d1d5db" stroke="#9ca3af" stroke-width="2" />
+            <rect x="200" y="120" width="40" height="25" fill="#d1d5db" stroke="#9ca3af" stroke-width="2" />
+            <rect x="180" y="118" width="80" height="8" fill="#4b5563" stroke="#374151" stroke-width="1" />
+            <rect x="185" y="126" width="10" height="17" fill="#6b7280" stroke="#4b5563" stroke-width="1" />
+            <rect x="245" y="126" width="10" height="17" fill="#6b7280" stroke="#4b5563" stroke-width="1" />
+            <rect x="175" y="143" width="30" height="4" fill="#374151" stroke="#111827" stroke-width="1" />
+            <rect x="235" y="143" width="30" height="4" fill="#374151" stroke="#111827" stroke-width="1" />
+            <circle cx="190" cy="145" r="1.5" fill="#9ca3af" />
+            <circle cx="250" cy="145" r="1.5" fill="#9ca3af" />
+        </g>
+
+    </g>
+</svg>

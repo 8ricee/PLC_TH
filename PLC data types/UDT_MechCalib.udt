@@ -1,0 +1,22 @@
+﻿TYPE "UDT_MechCalib"
+VERSION : 0.1
+   STRUCT
+      Cmd_Start : Bool;   // Bắt đầu tự động chạy 1m
+      Cmd_Stop : Bool;    // Dừng thủ công / Hủy bỏ
+      Cmd_Apply : Bool;   // Tính toán và áp dụng đường kính mới
+      Cmd_ApplySpanCalib : Bool; // Áp dụng bù chiều dài cân từ so sánh khối lượng
+      
+      TargetDist_m : Real := 1.0;     // Quãng đường hệ thống sẽ chạy (m) 
+      ActualDist_m : Real := 0.0;     // Quãng đường thực tế đo được (m)
+      CalibSpeed_Pct : Real := 20.0;  // Tốc độ chạy khi hiệu chuẩn (%)
+      
+      SpanCalib_ActualWeight : Real;  // Khối lượng thực tế từ cân đối chứng (kg)
+      SpanCalib_HMIWeight : Real;     // Khối lượng HMI báo cáo khi thử (kg)
+      
+      Status_Active : Bool;        // Quá trình hiệu chuẩn đang chạy
+      Status_Pulses : UDInt;       // Số xung tích lũy
+      Status_CurrentDist_m : Real; // Quãng đường hiện tại theo PLC (m)
+      Status_CalcDiameter : Real;  // Kết quả tính toán đường kính (mm)
+   END_STRUCT;
+   
+END_TYPE

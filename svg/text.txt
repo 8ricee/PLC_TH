@@ -1,0 +1,7 @@
+﻿Screen.Items("Trend_control_1").Visibility = true;
+Screen.Items("Trend_control_2").Visibility = false;
+Screen.Items("Trend_control_3").Visibility = false;
+Screen.Items("Trend_control_4").Visibility = false;
+Screen.Items("Trend_control_5").Visibility = false;
+Screen.Items("Trend_control_6").Visibility = false;
+Screen.Items("Trend_control_7").Visibility = false;

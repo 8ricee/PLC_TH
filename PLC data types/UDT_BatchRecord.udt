@@ -1,0 +1,19 @@
+TYPE "UDT_BatchRecord"
+VERSION : 0.1
+   STRUCT
+      BatchID : WString[20];   // [FIX-L5] Mã mẻ — WString để khớp kiểu với UDT_Recipe.BatchID
+      BatchNumber : Int;   // Số thứ tự mẻ trong loạt (1, 2, 3...)
+      Target_Weight : Real;   // Tổng khối lượng yêu cầu (kg)
+      Actual_Weight : Real;   // Tổng khối lượng thực tế (kg)
+      Deviation_Pct : Real;   // % sai lệch: (Actual - Target) / Target * 100
+      Status : Int;   // 1=OK, 2=Abort, 3=Error
+      Feeder_Target : Array[1..7] of Real;   //  KL yêu cầu từng băng (kg)
+      Feeder_Actual : Array[1..7] of Real;   // KL thực tế từng băng (kg)
+      Feeder_FaultWord : Array[1..7] of Word;   // [PHASE-6] Mã lỗi từng Feeder tại thời điểm ghi log
+      Error_Count : Int;   // [PHASE-6] Số lần bị Pause (Starvation/Fault) trong mẻ
+      Duration_sec : Real;   // [PHASE-6] Thời gian chạy mẻ (giây)
+      Timestamp_DTL {InstructionName := 'DTL'; LibVersion := '1.0'} : DTL;   // Thời gian hoàn thành (đọc từ RTC)
+   END_STRUCT;
+
+END_TYPE
+

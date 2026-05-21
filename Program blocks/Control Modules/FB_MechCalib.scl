@@ -1,0 +1,88 @@
+FUNCTION_BLOCK "FB_MechCalib"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.2
+   VAR_INPUT 
+      i_HSC_Count : UDInt; // Giá trị xung Encoder hiện tại
+      i_Fault_Encoder : Bool; // Tín hiệu báo lỗi Encoder
+      i_Cmd_Stop : Bool; // Lệnh dừng từ hệ thống (Manual Stop)
+   END_VAR
+
+   VAR_OUTPUT 
+      q_Cmd_Stop : Bool; // Xung lệnh dừng gửi ra hệ thống khi đủ quãng đường
+   END_VAR
+
+   VAR_IN_OUT 
+      io_Data : "UDT_MechCalib"; // Dữ liệu hiệu chuẩn cơ khí
+      io_Config : "UDT_Feeder_Config"; // Cấu hình thiết bị 
+   END_VAR
+
+   VAR 
+      stat_StartPulse : UDInt; // Xung tại thời điểm bắt đầu đo 
+   END_VAR
+
+BEGIN
+	// --- 1. KHỞI TẠO ---
+	#q_Cmd_Stop := FALSE; // Reset xung đầu ra mỗi vòng quét
+	
+	// --- 2. XỬ LÝ DỪNG KHẨN CẤP / HỦY BỎ ---
+	IF #io_Data.Cmd_Stop OR #i_Cmd_Stop OR #i_Fault_Encoder THEN
+	    #io_Data.Status_Active := FALSE;
+	END_IF;
+	#io_Data.Cmd_Stop := FALSE;
+	
+	// --- 3. BẮT ĐẦU QUÁ TRÌNH ĐO ---
+	IF #io_Data.Cmd_Start AND NOT #io_Data.Status_Active THEN
+	    #stat_StartPulse := #i_HSC_Count;
+	    #io_Data.Status_CurrentDist_m := 0.0;
+	    #io_Data.Status_Pulses := 0;
+	    #io_Data.Status_Active := TRUE;
+	END_IF;
+	#io_Data.Cmd_Start := FALSE;
+	
+	// --- 4. LOGIC GIÁM SÁT KHI ĐANG ĐO ---
+	IF #io_Data.Status_Active THEN
+	    // A. Tính số xung thực tế (Có xử lý tràn UDInt)
+	    IF #i_HSC_Count >= #stat_StartPulse THEN
+	        #io_Data.Status_Pulses := #i_HSC_Count - #stat_StartPulse;
+	    ELSE
+	        #io_Data.Status_Pulses := (16#FFFFFFFF - #stat_StartPulse) + #i_HSC_Count + 1;
+	    END_IF;
+	    
+	    // B. Tính quãng đường PLC ước tính dựa trên đường kính hiện tại
+	    IF #io_Config.PulsePerRev > 0 THEN
+	        #io_Data.Status_CurrentDist_m := (UDINT_TO_REAL(#io_Data.Status_Pulses) / INT_TO_REAL(#io_Config.PulsePerRev)) 
+	                                        * 3.141593 * (#io_Config.WheelDiameter / 1000.0);
+	    END_IF;
+	    
+	    // C. Kiểm tra điều kiện dừng tự động khi đủ chiều dài mục tiêu
+	    IF #io_Data.Status_CurrentDist_m >= #io_Data.TargetDist_m THEN
+	        #io_Data.Status_Active := FALSE; 
+	        #q_Cmd_Stop := TRUE; // Phát xung lệnh dừng cho hệ thống
+	    END_IF;
+	END_IF;
+	
+	// --- 5. ÁP DỤNG KẾT QUẢ ĐƯỜNG KÍNH MỚI ---
+	IF #io_Data.Cmd_Apply THEN
+	    IF #io_Data.ActualDist_m > 0.1 AND #io_Data.Status_CurrentDist_m > 0.1 THEN
+	        #io_Data.Status_CalcDiameter := #io_Config.WheelDiameter * (#io_Data.ActualDist_m / #io_Data.Status_CurrentDist_m);
+	        #io_Config.WheelDiameter := #io_Data.Status_CalcDiameter;
+	        #io_Data.Status_Active := FALSE;
+	        
+	        // Reset dữ liệu nhập để tránh nhấn nhầm lần 2
+	        #io_Data.ActualDist_m := 0.0;
+	        #io_Data.Status_CurrentDist_m := 0.0;
+	    END_IF;
+	END_IF;
+	#io_Data.Cmd_Apply := FALSE;
+	
+	// --- 6. HIỆU CHỈNH CHIỀU DÀI CÂN (WEIGH SPAN) THEO KHỐI LƯỢNG ---
+	IF #io_Data.Cmd_ApplySpanCalib THEN
+	    IF #io_Data.SpanCalib_ActualWeight > 0.0 AND #io_Data.SpanCalib_HMIWeight > 0.0 THEN
+	        #io_Config.WeighSpan := #io_Config.WeighSpan * (#io_Data.SpanCalib_HMIWeight / #io_Data.SpanCalib_ActualWeight);
+	        
+	        #io_Data.SpanCalib_ActualWeight := 0.0;
+	        #io_Data.SpanCalib_HMIWeight := 0.0;
+	    END_IF;
+	END_IF;
+	#io_Data.Cmd_ApplySpanCalib := FALSE;
+END_FUNCTION_BLOCK

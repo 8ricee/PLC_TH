@@ -1,0 +1,28 @@
+TYPE "UDT_Feeder_Status"
+VERSION : 0.1
+   STRUCT
+      Running : Bool;   // Chạy
+      Fault : Bool;   // Lỗi chung
+      Fault_VFD : Bool;   //  Lỗi biến tần
+      Fault_Overload : Bool;   // Lỗi quá tải cân
+      Fault_Sensor : Bool;   // Lỗi cảm biến (Đứt dây/Quá áp)
+      Fault_Encoder : Bool;   // Lỗi Encoder (Đứt dây/Kẹt)
+      Alarm_DevHigh : Bool;   // Cảnh báo lệch CAO (Flow > SP + X%)
+      Alarm_DevLow : Bool;   // Cảnh báo lệch THẤP (Flow < SP - X%)
+      Done : Bool;   // Đã cân đủ khối lượng
+      Dribble_Active : Bool;   // Đang giảm tốc cuối mẻ
+      Actual_FlowRate : Real;   // Lưu lượng tức thời (kg/h)
+      Totalized_Weight : Real;   // Khối lượng đã cân được (kg)
+      Test_Total_Weight : Real;  // Khối lượng đã chạy thử (kg)
+      Belt_Speed : Real;   // Tốc độ băng (m/s)
+      Load_Density : Real;   // Mật độ liệu (kg/m)
+      Current_Amps : Real;   // Dòng điện động cơ (A)
+      Speed_Pct : Real;   // Tốc độ VFD output (0-100%) - Hiển thị HMI
+      Calib_Status_Code : Int;   // 0=Idle, 1=Zero OK, 2=Span OK, 9=Err Span
+      Feeder_State_Code : Int;   // Mã trạng thái tổng hợp (Ready/Run/Done/Fault)
+      AutoMode_Act : Bool;   // Trạng thái Auto thực tế (Feedback)
+      LocalMode_Act : Bool;   // Trạng thái Local thực tế (Feedback)
+      FaultWord : Word;       // Mã lỗi Bit-pattern (0: VFD, 1: Overload, 2: Sensor, 3: Encoder)
+   END_STRUCT;
+
+END_TYPE

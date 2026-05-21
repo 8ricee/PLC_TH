@@ -1,0 +1,14 @@
+TYPE "UDT_Recipe"
+VERSION : 0.1
+   STRUCT
+      BatchID : WString[20];   // Mã ca / đợt sản xuất
+      Target_Production : Real;   // Sản lượng mục tiêu ca (kg) — 0 = chạy vô hạn
+      MixTime : Time;   // Thời gian (dự phòng, không dùng cho tính toán SP)
+      MixTime_HMI : Real;   // Thời gian hiển thị trên HMI (phút)
+      Material_Names : Array[1..7] of WString;   // Tên mỗi băng tải
+      Material_Percents : Array[1..7] of Real;   // Phần trăm khối lượng
+      Target_FlowRate : Real; // Năng suất tổng mong muốn (kg/h) — nhập trực tiếp
+   END_STRUCT;
+
+END_TYPE
+

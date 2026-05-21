@@ -1,0 +1,18 @@
+TYPE "UDT_Calib"
+VERSION : 0.1
+   STRUCT
+      Saved_RawZero : Real;   // Giá trị Raw khi cân trống
+      Saved_RawSpan : Real;   // Giá trị Raw khi có tải mẫu
+      Saved_TestWeight : Real;   // Khối lượng của quả cân mẫu
+      Cmd_SetZero : Bool;   // Nút nhấn Calib điểm 0
+      Cmd_SetSpan : Bool;   // Nút nhấn Calib Span
+      Test_Weight : Real;   // Cân nặng quả chuẩn nhập từ HMI
+      FactorK : Real := 1.0;   // Hệ số hiệu chỉnh K (nhập từ HMI, mặc định 1.0)
+      Calib_Factor : Real := 0.0;   // Hệ số dốc tính toán (m) - LƯU TRỮ TRONG DB
+      Current_Density : Real;   // Mật độ liệu thực tế (kg/m) - Hiển thị HMI khi Calib
+      Actual_Weight : Real;   // Khối lượng thực tế hiện tại (kg) - Hiển thị bước Calib
+      Actual_WeighSpan : Real;   // Chiều dài cân PLC đang nhận (m) - Kiểm tra HMI Mapping
+   END_STRUCT;
+
+END_TYPE
+

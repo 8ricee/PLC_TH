@@ -1,0 +1,66 @@
+ORGANIZATION_BLOCK "Startup"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_TEMP 
+      i : Int;   // Biến lặp dùng để rà soát và khởi tạo 7 Feeder
+   END_VAR
+
+
+BEGIN
+	    REGION "INITIALIZATION"
+	        // =============================================================
+	        // KHỞI TẠO HỆ THỐNG KHI VỪA BẬT NGUỒN (STARTUP)  
+	        // =============================================================
+	        
+	        // 1. Đưa máy về trạng thái chờ (IDLE)
+	        // Để tránh trường hợp vừa bật điện máy đã nhảy vào bước đang chạy dở
+	        "DB_HMI_Data".System_Status.System_State := 0; // 0 = IDLE
+	        
+	        // 2. Xóa lệnh điều khiển (Safety)
+	        // Ngăn không cho nút Start bị dính (Latching) gây tự chạy nguy hiểm
+	        "DB_HMI_Data".Commands.Start := FALSE;
+	        "DB_HMI_Data".Commands.Stop := FALSE;
+	        "DB_HMI_Data".Commands.Reset := FALSE;
+	        "DB_HMI_Data".Commands.LoadRecipe := FALSE;
+	        
+	        // 3. Reset các cờ báo lỗi cũ
+	        // Để hệ thống bắt đầu với trạng thái "Sạch". 
+	        // Nếu lỗi phần cứng vẫn còn thì OB82/OB86 sẽ tự kích hoạt lại ngay sau đó.
+	        "DB_HMI_Data".System_Status.System_Error := FALSE;
+	        "DB_HMI_Data".System_Status.Error_ID := 0;
+	        
+	        // 4. Xóa đầu ra phần cứng (Mapping Output)
+	        // Đảm bảo không có biến tần nào nhận lệnh chạy khi PLC chưa quét xong vòng đầu
+	        // (Với mảng thì cần vòng lặp, nhưng PLC tự xóa Q khi Stop nên bước này là dự phòng thôi)
+	        
+	        // 5. [QUAN TRỌNG] Khởi tạo tham số cấu hình mặc định (Nếu chưa có)
+	        // Giúp chế độ Simulation chạy được ngay mà không cần HMI cài đặt
+	        FOR #i := 1 TO 7 DO
+	            // Lưu ý: TIA Portal cho phép truy cập Instance DB từ bên ngoài
+	            // Cấu hình mẫu cho Feeder 1..7 (Chỉ Set nếu chưa có)
+	            // Tuy nhiên Startup chỉ chạy 1 lần, nên Set luôn để đảm bảo Simu chạy
+	            // "DB_HMI_Data".Feeder_Configs[#i].MaxFlowRate := 10000.0; // 10 tấn/h
+	            // "DB_HMI_Data".Feeder_Configs[#i].WeighSpan := 1.0;       // 1 mét
+	            // "DB_HMI_Data".Feeder_Configs[#i].WheelDiameter := 600.0;  // 600mm
+	            // "DB_HMI_Data".Feeder_Configs[#i].PulsePerRev := 1000;    // 1000 xung
+	            // "DB_HMI_Data".Feeder_Configs[#i].LoadcellCapacity := 100.0; // 100kg
+	        END_FOR;
+	        
+	        // 6. [HELPFUL] Khởi tạo Recipe mặc định để Test ngay
+	        // CẢNH BÁO: Tổng % của 7 nguyên liệu PHẢI = 100.0%
+	        // Khi chỉnh sửa, luôn kiểm tra lại tổng. BatchManager sẽ từ chối nếu sai ±0.1%
+	        
+	        // "DB_HMI_Data".Recipe.Current_Recipe.Target_Production := 1000.0;
+	        // "DB_HMI_Data".Recipe.Current_Recipe.Target_FlowRate := 5000.0; // 5 tấn/h
+	        // "DB_HMI_Data".Recipe.Current_Recipe.Material_Percents[1] := 25.0;  // Subtotal: 25.0%
+	        // "DB_HMI_Data".Recipe.Current_Recipe.Material_Percents[2] := 30.0;  // Subtotal: 55.0%
+	        // "DB_HMI_Data".Recipe.Current_Recipe.Material_Percents[3] := 5.0;   // Subtotal: 60.0%
+	        // "DB_HMI_Data".Recipe.Current_Recipe.Material_Percents[4] := 12.0;  // Subtotal: 72.0%
+	        // "DB_HMI_Data".Recipe.Current_Recipe.Material_Percents[5] := 4.0;   // Subtotal: 76.0%
+	        // "DB_HMI_Data".Recipe.Current_Recipe.Material_Percents[6] := 9.0;   // Subtotal: 85.0%
+	        // "DB_HMI_Data".Recipe.Current_Recipe.Material_Percents[7] := 15.0;  // TỔNG:    100.0%
+	        // Các Feeder khác mặc định 0%
+	        
+	    END_REGION
+END_ORGANIZATION_BLOCK
+

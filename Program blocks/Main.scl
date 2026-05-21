@@ -1,0 +1,188 @@
+ORGANIZATION_BLOCK "Main"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_TEMP 
+      idx : Int; // Biến chỉ số dùng cho vòng lặp FOR kiểm tra cấu hình
+   END_VAR
+
+BEGIN
+	REGION "INPUT_MAPPING"
+		// =================================================================
+		// 1. INPUT MAPPING (Gán từ PLC TAGS vào DB_IO_MAPPING)
+		// =================================================================
+		
+		// (Các nút bấm vật lý và công tắc tổng đă được gỡ bỏ theo yêu cầu, chỉ dùng HMI)
+
+		// --- FEEDER 01 ---
+		"DB_IO_Mapping".Input.Local_Remote_Switch[1] := "DI_Feeder_01_Local";
+		"DB_IO_Mapping".Input.VFD_Fault[1] := "DI_Feeder_01_Fault";
+		"DB_IO_Mapping".Input.Loadcell[1] := "AI_Feeder_01_Weight";
+		"DB_IO_Mapping".Input.Encoder_Count[1] := "HSC_Feeder_01_Hz";
+		
+		// --- FEEDER 02 ---
+		"DB_IO_Mapping".Input.Local_Remote_Switch[2] := "DI_Feeder_02_Local";
+		"DB_IO_Mapping".Input.VFD_Fault[2] := "DI_Feeder_02_Fault";
+		"DB_IO_Mapping".Input.Loadcell[2] := "AI_Feeder_02_Weight";
+		"DB_IO_Mapping".Input.Encoder_Count[2] := "HSC_Feeder_02_Hz";
+		
+		// --- FEEDER 03 ---
+		"DB_IO_Mapping".Input.Local_Remote_Switch[3] := "DI_Feeder_03_Local";
+		"DB_IO_Mapping".Input.VFD_Fault[3] := "DI_Feeder_03_Fault";
+		"DB_IO_Mapping".Input.Loadcell[3] := "AI_Feeder_03_Weight";
+		"DB_IO_Mapping".Input.Encoder_Count[3] := "HSC_Feeder_03_Hz";
+		
+		// --- FEEDER 04 ---
+		"DB_IO_Mapping".Input.Local_Remote_Switch[4] := "DI_Feeder_04_Local";
+		"DB_IO_Mapping".Input.VFD_Fault[4] := "DI_Feeder_04_Fault";
+		"DB_IO_Mapping".Input.Loadcell[4] := "AI_Feeder_04_Weight";
+		"DB_IO_Mapping".Input.Encoder_Count[4] := "HSC_Feeder_04_Hz";
+		
+		// --- FEEDER 05 ---
+		"DB_IO_Mapping".Input.Local_Remote_Switch[5] := "DI_Feeder_05_Local";
+		"DB_IO_Mapping".Input.VFD_Fault[5] := "DI_Feeder_05_Fault";
+		"DB_IO_Mapping".Input.Loadcell[5] := "AI_Feeder_05_Weight";
+		"DB_IO_Mapping".Input.Encoder_Count[5] := "HSC_Feeder_05_Hz";
+		
+		// --- FEEDER 06 ---
+		"DB_IO_Mapping".Input.Local_Remote_Switch[6] := "DI_Feeder_06_Local";
+		"DB_IO_Mapping".Input.VFD_Fault[6] := "DI_Feeder_06_Fault";
+		"DB_IO_Mapping".Input.Loadcell[6] := "AI_Feeder_06_Weight";
+		"DB_IO_Mapping".Input.Encoder_Count[6] := "HSC_Feeder_06_Hz";
+		
+		// --- FEEDER 07 ---
+		"DB_IO_Mapping".Input.Local_Remote_Switch[7] := "DI_Feeder_07_Local";
+		"DB_IO_Mapping".Input.VFD_Fault[7] := "DI_Feeder_07_Fault";
+		"DB_IO_Mapping".Input.Loadcell[7] := "AI_Feeder_07_Weight";
+		"DB_IO_Mapping".Input.Encoder_Count[7] := "HSC_Feeder_07_Hz";
+		
+		// --- BỎ MAIN CONVEYOR MAP VÀO INPUT ---
+	END_REGION
+	
+	
+	REGION "LOGIC_CONTROL"
+		// =================================================================
+		// 2. LOGIC CONTROL (Gọi OB30 hoặc các khối khác ở đây nếu cần)
+		// =================================================================
+		// (Logic chính đang chạy tự động trong OB30 - Cyclic Interrupt)
+		// (Logic chính đang chạy tự động trong OB30 - Cyclic Interrupt)
+		// Việc Reset lỗi đã được chuyển sang OB30 để tránh xung đột Timing
+		
+		
+		// [HEARTBEAT] Báo hiệu PLC đang hoạt động và kết nối tốt
+		// Bit này sẽ đảo trạng thái liên tục theo vòng quét (Cycle).
+		// HMI sẽ giám sát: Nếu bit này đứng im > 2s -> Báo mất kết nối PLC.
+		"DB_HMI_Data".System_Status.PLC_Life_Bit := NOT "DB_HMI_Data".System_Status.PLC_Life_Bit;
+		
+		// [PING ECHO] Phản hồi tín hiệu Ping từ HMI
+		// HMI bật Request -> PLC bật Response. HMI tắt Request -> PLC tắt Response.
+		// Dùng để đo độ trễ mạng (Round-trip time).   
+		"DB_HMI_Data".System_Status.PLC_Ping_Response := "DB_HMI_Data".System_Status.HMI_Ping_Request;
+	END_REGION
+	
+	REGION "VALIDATE_CONFIGS"
+		// =================================================================
+		// KIỂM TRA TÍNH HỢP LỆ CỦA CẤU HÌNH (PID) ĐỂ TRÁNH QUÁ TẢI OB30
+		// =================================================================
+		FOR #idx := 1 TO 7 DO
+			IF "DB_HMI_Data".Feeder_Configs[#idx].PID_Kp <= 0.001 THEN
+				"DB_HMI_Data".Feeder_Configs[#idx].PID_Kp := 1.0;
+			END_IF;
+			IF "DB_HMI_Data".Feeder_Configs[#idx].PID_Ti <= 0.0 THEN
+				"DB_HMI_Data".Feeder_Configs[#idx].PID_Ti := 10.0;
+			END_IF;
+			IF "DB_HMI_Data".Feeder_Configs[#idx].PID_Td < 0.0 THEN
+				"DB_HMI_Data".Feeder_Configs[#idx].PID_Td := 0.1;
+			END_IF;
+			IF "DB_HMI_Data".Feeder_Configs[#idx].PID_OutputMin < 0.0 THEN
+				"DB_HMI_Data".Feeder_Configs[#idx].PID_OutputMin := 0.0;
+			END_IF;
+			IF "DB_HMI_Data".Feeder_Configs[#idx].PID_OutputMax > 100.0 THEN
+				"DB_HMI_Data".Feeder_Configs[#idx].PID_OutputMax := 100.0;
+			END_IF;
+			IF "DB_HMI_Data".Feeder_Configs[#idx].PID_OutputMin > "DB_HMI_Data".Feeder_Configs[#idx].PID_OutputMax THEN
+				"DB_HMI_Data".Feeder_Configs[#idx].PID_OutputMin := 0.0;
+				"DB_HMI_Data".Feeder_Configs[#idx].PID_OutputMax := 100.0;
+			END_IF;
+		END_FOR;
+	END_REGION
+	
+	REGION "OUTPUT_MAPPING"
+		// =================================================================
+		// 3. OUTPUT MAPPING (Gán từ DB_IO_MAPPING ra PLC TAGS)
+		// =================================================================
+		// Khi từng Feeder ở LOCAL MODE: PLC ngắt tín hiệu khởi động VFD nhưng vẫn đọc số lượng
+		
+		// --- FEEDER 01 ---
+		IF NOT "DB_IO_Mapping".Input.Local_Remote_Switch[1] OR "DB_HMI_Data".Commands.Simulation_Mode THEN
+			"DO_Feeder_01_Start" := "DB_IO_Mapping".Output.VFD_Start[1];
+			"AQ_Feeder_01_Speed" := "DB_IO_Mapping".Output.VFD_Speed[1];
+		ELSE
+			"DO_Feeder_01_Start" := FALSE; // Local Mode: Ngắt khởi động
+			"AQ_Feeder_01_Speed" := 0;    // Local Mode: Ngắt tốc độ AO về 0
+		END_IF;
+		
+		// --- FEEDER 02 ---
+		IF NOT "DB_IO_Mapping".Input.Local_Remote_Switch[2] OR "DB_HMI_Data".Commands.Simulation_Mode THEN
+			"DO_Feeder_02_Start" := "DB_IO_Mapping".Output.VFD_Start[2];
+			"AQ_Feeder_02_Speed" := "DB_IO_Mapping".Output.VFD_Speed[2];
+		ELSE
+			"DO_Feeder_02_Start" := FALSE;
+			"AQ_Feeder_02_Speed" := 0;
+		END_IF;
+		
+		// --- FEEDER 03 ---
+		IF NOT "DB_IO_Mapping".Input.Local_Remote_Switch[3] OR "DB_HMI_Data".Commands.Simulation_Mode THEN
+			"DO_Feeder_03_Start" := "DB_IO_Mapping".Output.VFD_Start[3];
+			"AQ_Feeder_03_Speed" := "DB_IO_Mapping".Output.VFD_Speed[3];
+		ELSE
+			"DO_Feeder_03_Start" := FALSE;
+			"AQ_Feeder_03_Speed" := 0;
+		END_IF;
+		
+		// --- FEEDER 04 ---
+		IF NOT "DB_IO_Mapping".Input.Local_Remote_Switch[4] OR "DB_HMI_Data".Commands.Simulation_Mode THEN
+			"DO_Feeder_04_Start" := "DB_IO_Mapping".Output.VFD_Start[4];
+			"AQ_Feeder_04_Speed" := "DB_IO_Mapping".Output.VFD_Speed[4];
+		ELSE
+			"DO_Feeder_04_Start" := FALSE;
+			"AQ_Feeder_04_Speed" := 0;
+		END_IF;
+		
+		// --- FEEDER 05 ---
+		IF NOT "DB_IO_Mapping".Input.Local_Remote_Switch[5] OR "DB_HMI_Data".Commands.Simulation_Mode THEN
+			"DO_Feeder_05_Start" := "DB_IO_Mapping".Output.VFD_Start[5];
+			"AQ_Feeder_05_Speed" := "DB_IO_Mapping".Output.VFD_Speed[5];
+		ELSE
+			"DO_Feeder_05_Start" := FALSE;
+			"AQ_Feeder_05_Speed" := 0;
+		END_IF;
+		
+		// --- FEEDER 06 ---
+		IF NOT "DB_IO_Mapping".Input.Local_Remote_Switch[6] OR "DB_HMI_Data".Commands.Simulation_Mode THEN
+			"DO_Feeder_06_Start" := "DB_IO_Mapping".Output.VFD_Start[6];
+			"AQ_Feeder_06_Speed" := "DB_IO_Mapping".Output.VFD_Speed[6];
+		ELSE
+			"DO_Feeder_06_Start" := FALSE;
+			"AQ_Feeder_06_Speed" := 0;
+		END_IF;
+		
+		// --- FEEDER 07 ---
+		IF NOT "DB_IO_Mapping".Input.Local_Remote_Switch[7] OR "DB_HMI_Data".Commands.Simulation_Mode THEN
+			"DO_Feeder_07_Start" := "DB_IO_Mapping".Output.VFD_Start[7];
+			"AQ_Feeder_07_Speed" := "DB_IO_Mapping".Output.VFD_Speed[7];
+		ELSE
+			"DO_Feeder_07_Start" := FALSE;
+			"AQ_Feeder_07_Speed" := 0; 
+		END_IF;
+		
+		// --- TÍN HIỆU CẢNH BÁO LỖI RA ĐÈN/CÒI VẬT LÝ ---
+		// Gán trạng thái lỗi tổng hợp từ logic hệ thống vào DB Mapping để đồng bộ với HMI
+		"DB_IO_Mapping".Output.System_Error := "DB_HMI_Data".System_Status.System_Error;
+		
+		// Xuất tín hiệu từ DB ra ngõ ra vật lý (Mapping)
+		"DO_System_Error" := "DB_IO_Mapping".Output.System_Error;
+		
+	END_REGION
+END_ORGANIZATION_BLOCK
+
+  

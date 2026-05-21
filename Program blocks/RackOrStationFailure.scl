@@ -1,0 +1,37 @@
+﻿ORGANIZATION_BLOCK "RackOrStationFailure"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_TEMP 
+      i : Int;   // Biến lặp dùng để rà soát và tắt khẩn cấp 7 Feeder khi mất kết nối module
+   END_VAR
+
+
+BEGIN
+	        // ==============================================================
+	        // OB86 được gọi khi mất kết nối module IO (DP/PN slave mất, module rút ra...)
+	        // Nếu không xử lý, giá trị Analog Input sẽ đóng băng → PID chạy sai → NGUY HIỂM
+	        
+	        REGION "RACK_STATION_FAULT_HANDLER"
+	            // Khi chạy Simulation: KHÔNG có rack/station thật → OB86 liên tục fire
+	            // → Bỏ qua, không set lỗi, tránh block hệ thống
+	            IF NOT "DB_HMI_Data".Commands.Simulation_Mode THEN
+	                // 1. BẬT CỜ LỖI PHẦN CỨNG (Giống OB82)
+	                "DB_HMI_Data".System_Status.Hardware_Error := TRUE;
+	                
+	                // 2. LƯU ĐỊA CHỈ PHẦN CỨNG BỊ LỖI
+	                "DB_HMI_Data".System_Status.Diagnostics_Info := UINT_TO_WORD(#LADDR);
+	                
+	                // 3. DỪNG KHẨN CẤP TẤT CẢ OUTPUT (SAFE STATE) 
+	                FOR #i := 1 TO 7 DO
+	                    "DB_IO_Mapping".Output.VFD_Start[#i] := FALSE;
+	                    "DB_IO_Mapping".Output.VFD_Speed[#i] := 0;
+	                END_FOR;
+	                
+	                
+	                // 5. DỪNG STATE MACHINE
+	                "DB_HMI_Data".Commands.Stop := TRUE;
+	                "DB_HMI_Data".Commands.Start := FALSE;
+	            END_IF;
+	        END_REGION
+END_ORGANIZATION_BLOCK
+

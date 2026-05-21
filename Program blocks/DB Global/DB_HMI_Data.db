@@ -1,0 +1,61 @@
+DATA_BLOCK "DB_HMI_Data"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+NON_RETAIN
+   VAR 
+      Commands : Struct   // Nhóm lệnh điều khiển trung tâm từ HMI
+         Start : Bool;   // Lệnh Start toàn bộ hệ thống
+         Stop : Bool;   // Lệnh Stop toàn bộ hệ thống
+         Reset : Bool;   // Lệnh Reset xóa lỗi
+         Pause : Bool;   // Lệnh Tạm dừng mẻ
+         LoadRecipe : Bool; // Lệnh nạp công thức nhưng không chạy
+         Global_Manual_Mode : Bool;   // Chế độ chạy bằng Tay = T, Tự động = F
+         Simulation_Mode : Bool;   // Bật chạy mô phỏng giả lập không mang tải vật lý
+      END_STRUCT;
+   END_VAR
+   VAR RETAIN
+      Recipe : Struct   // Dữ liệu Công thức sản xuất
+         Current_Recipe { S7_SetPoint := 'False'} : "UDT_Recipe";   // Cấu trúc công thức trộn (Tỉ lệ phần trăm, Sản lượng mục tiêu)
+      END_STRUCT;
+   END_VAR
+   VAR 
+      Recipe_Preview : Struct   // Dữ liệu Công thức sản xuất (xem trước)
+         Current_Recipe : "UDT_Recipe";
+      END_STRUCT;
+   END_VAR
+   VAR RETAIN
+      Feeder_Configs { S7_SetPoint := 'False'} : Array[1..7] of "UDT_Feeder_Config";   // Cài đặt thông số cơ học & PID cho cấu hình 7 băng tải
+      Feeder_Manual_Cmds { S7_SetPoint := 'False'} : Array[1..7] of "UDT_Feeder_Cmd";   // Lệnh độc lập để can thiệp tay từng Feeder (Qua màn hình Faceplate)
+      Calibration { S7_SetPoint := 'False'} : Array[1..7] of "UDT_Calib";   // Lưu lượng điểm Zero, Span, Hệ số K chuẩn của 7 Loadcell
+      Feeder_Mech_Calibs { S7_SetPoint := 'False'} : Array[1..7] of "UDT_MechCalib"; // Thông số hiệu chuẩn cơ khí cho 7 băng tải
+   END_VAR
+   VAR 
+      System_Status : Struct   // Báo cáo trạng thái tổng quát hệ thống trả về HMI
+         System_State : Int;   // Mã tiến trình hiện tại (0=IDLE, 30=DOSING, 90=FAULT, 99=PAUSED)
+         System_Error : Bool;   // Cờ chung: Quá trình đang có vấn đề hoặc lỗi
+         Hardware_Error : Bool;   // Cờ sự cố vật lý: Rớt Biến tần, mất tín hiệu Loadcell
+         Error_ID : Word;   // Mã bit chẩn đoán lỗi (VD: Bit 0 là Feeder 1 lỗi) 
+         Diagnostics_Info : Word;   // Thanh ghi số liệu debug mạng PLC 
+         System_Paused : Bool;   // Trạng thái Tạm dừng đang kích hoạt
+         PLC_Life_Bit : Bool;   // Xung Heartbeat nháy chứng minh PLC không bị treo
+         HMI_Ping_Request : Bool;   // Phục vụ cơ chế Ping đo sóng kết nối HMI-PLC
+         PLC_Ping_Response : Bool;   // Trả tín hiệu ngay lập tức khi nhận Ping
+         Latency_ms : Real;   // Tính toán độ trễ giao tiếp (Ping time ms)
+         Actual_Total_Weight : Real;   // Tổng khối lượng cân thực đã chạy của tất cả 7 phễu
+         Elapsed_Time : Time;   // Thời gian ca đã chạy được
+      END_STRUCT;
+      Feeders_Detail { S7_SetPoint := 'False'} : Array[1..7] of "UDT_Feeder_Status";   // Chi tiết thời gian thực từng 1 trạm cân: Tốc độ m/phút, kg/h...
+   END_VAR
+
+
+BEGIN
+   Recipe.Current_Recipe.Material_Names[1] := WSTRING#'Quặng sắt';
+   Recipe.Current_Recipe.Material_Names[2] := WSTRING#'Than';
+   Recipe.Current_Recipe.Material_Names[3] := WSTRING#'Đá';
+   Recipe.Current_Recipe.Material_Names[4] := WSTRING#'Vôi';
+   Recipe.Current_Recipe.Material_Names[5] := WSTRING#'Cát';
+   Recipe.Current_Recipe.Material_Names[6] := WSTRING#'Sỏi';
+   Recipe.Current_Recipe.Material_Names[7] := WSTRING#'Phụ gia';
+
+END_DATA_BLOCK
+

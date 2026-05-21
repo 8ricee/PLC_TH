@@ -1,0 +1,23 @@
+﻿ORGANIZATION_BLOCK "DiagnosticErrorInterrupt"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+
+BEGIN
+	// ==============================================================
+	// LOGIC BÁO LỖI PHẦN CỨNG (S7-1200 Compatible)
+	// ==============================================================
+	REGION "HARDWARE ERROR DIAGNOSTICS"
+		
+		// Khi chạy Simulation: KHÔNG có phần cứng thật → OB82 liên tục fire
+		// → Bỏ qua, không set lỗi, tránh block hệ thống
+		IF NOT "DB_HMI_Data".Commands.Simulation_Mode THEN
+			// 1. BẬT CỜ LỖI PHẦN CỨNG (Reset thủ công bằng nút Reset trên HMI)
+			"DB_HMI_Data".System_Status.Hardware_Error := TRUE;
+			
+			// 2. Lưu lại địa chỉ phần cứng bị lỗi (LADDR)
+			"DB_HMI_Data".System_Status.Diagnostics_Info := UINT_TO_WORD(#LADDR);
+		END_IF;
+		
+	END_REGION
+END_ORGANIZATION_BLOCK
+

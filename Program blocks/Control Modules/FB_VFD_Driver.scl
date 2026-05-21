@@ -1,0 +1,123 @@
+FUNCTION_BLOCK "FB_VFD_Driver"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT 
+      i_Enable : Bool;   // Tín hiệu cấp phép hoạt động chung (True = Cho phép, False = Cấm chạy)
+      i_StartCmd : Bool;   // Pulse lệnh chạy (Start)
+      i_StopCmd : Bool;   // Pulse lệnh dừng (Stop)
+      i_ResetCmd : Bool;   // Pulse lệnh Reset lỗi biến tần
+      i_SpeedSetpoint_Pct : Real;   // Tốc độ đặt mong muốn (0.0 - 100.0 %)
+      i_FaultInput : Bool;   // Tín hiệu báo lỗi cứng trả về từ Biến tần (TRUE = Fault)
+   END_VAR
+
+   VAR_OUTPUT 
+      o_RunCmd : Bool;   // Đầu ra đóng contactor / lệnh Run cho biến tần
+      o_AnalogSpeed : Int;   // Đầu ra tín hiệu Analog tốc độ (0 - 27648)
+      o_Status_Running : Bool;   // Báo động trạng thái hệ thống đang chạy
+      o_Status_Fault : Bool;   // Báo động trạng thái hệ thống đang có lỗi chốt
+   END_VAR
+
+   VAR 
+      stat_RunLatch : Bool;   // Biến chốt trạng thái Run (Flip-flop)
+      stat_FaultLatch : Bool;   // Biến chốt trạng thái Lỗi
+      stat_ResetCmd_Prev : Bool;   // Nhớ lệnh Reset cycle trước để bắt sườn lên
+      stat_Fault_Timer {InstructionName := 'TON_TIME'; LibVersion := '1.0'} : TON_TIME; // Timer lọc tín hiệu lỗi phần cứng
+      stat_Startup_Timer {InstructionName := 'TON_TIME'; LibVersion := '1.0'} : TON_TIME; // Timer chờ khởi động biến tần
+   END_VAR
+
+   VAR_TEMP 
+      temp_Speed_Clamped : Real;   // Tốc độ lưu nháp đã clamp trong dải 0-100%
+      temp_Reset_Edge : Bool;   // Xung sườn lên của nút Reset 
+   END_VAR
+
+
+BEGIN
+	        REGION "FAULT_HANDLING"
+	            // =============================================================
+	            // 1. XỬ LÝ LỖI (FAULT HANDLING) - EDGE-TRIGGERED RESET
+	            // =============================================================
+	            // [PHASE-A FIX] Sử dụng Edge Trigger cho Reset:
+	            //   - Tránh giữ nút Reset xóa lỗi liên tục
+	            //   - Chỉ xóa lỗi 1 lần mỗi nhấn
+	            
+	            #temp_Reset_Edge := #i_ResetCmd AND NOT #stat_ResetCmd_Prev;
+	            #stat_ResetCmd_Prev := #i_ResetCmd;
+	            
+	            // Cửa sổ khởi động: Chờ 5 giây sau khi có lệnh Run để biến tần ổn định relay Healthy
+	            #stat_Startup_Timer(IN := #stat_RunLatch,
+	                                PT := T#5s);
+	            
+	            // Lọc tín hiệu lỗi (2s) - Kiểm tra mọi lúc để đảm bảo báo lỗi ngay cả khi đang dừng
+	            #stat_Fault_Timer(IN := #i_FaultInput,
+	                              PT := T#2s);
+	            
+	            // Nếu lỗi duy trì > 2s sau khởi động -> Latch lỗi + Ngắt VFD ngay
+	            IF #stat_Fault_Timer.Q THEN
+	                #stat_FaultLatch := TRUE;
+	                #stat_RunLatch := FALSE; // Ngắt tự giữ ngay lập tức
+	            ELSIF NOT #i_FaultInput THEN
+	                #stat_FaultLatch := FALSE; // Tự động reset lỗi khi biến tần hoạt động bình thường trở lại (i_FaultInput = FALSE)
+	            END_IF;
+	            
+	            // Reset lỗi bằng nút nhấn HMI vẫn được duy trì để chủ động reset nếu cần
+	            IF #temp_Reset_Edge AND NOT #i_FaultInput THEN
+	                #stat_FaultLatch := FALSE;
+	            END_IF;
+	            
+	            #o_Status_Fault := #stat_FaultLatch;
+	        END_REGION
+	        
+	        REGION "START_STOP_LOGIC"
+	            // =============================================================
+	            // 2. LOGIC ĐIỀU KHIỂN CHẠY/DỪNG (ISA-88 SELF-LATCHING)
+	            // =============================================================
+	            // [PHASE-A FIX] Logic Latch chuẩn ISA-88:
+	            //   SET:   Start (pulse hoặc level) khi Enable và không Fault
+	            //   RESET: Stop hoặc Fault hoặc NOT Enable
+	            //
+	            // Ưu tiên: RESET > SET (dòng Stop sau dòng Start → ghi đè)
+	            // Điều này đảm bảo AN TOÀN: Nếu Start và Stop cùng lúc → DỪNG.
+	            
+	            // Điều kiện an toàn: Mất Enable → Dừng ngay
+	            IF NOT #i_Enable THEN
+	                #stat_RunLatch := FALSE;
+	            ELSE
+	                // --- SET (Latch ON) ---
+	                // Start chỉ cần TRUE 1 cycle là đủ để Latch ON
+	                // Sau đó dù Start = FALSE, VFD vẫn chạy cho đến khi có Stop/Fault
+	                IF #i_StartCmd AND NOT #o_Status_Fault THEN
+	                    #stat_RunLatch := TRUE;
+	                END_IF;
+	                
+	                // --- RESET (Priority cao hơn SET) ---
+	                // Dừng khi: Có lệnh Stop HOẶC có Fault
+	                // [PHASE-A FIX] BỎ điều kiện "NOT Start" → VFD giữ chạy khi không có Stop
+	                IF #i_StopCmd OR #o_Status_Fault THEN
+	                    #stat_RunLatch := FALSE;
+	                END_IF;
+	            END_IF;
+	            
+	            #o_RunCmd := #stat_RunLatch;
+	            #o_Status_Running := #stat_RunLatch;
+	        END_REGION
+	        
+	        REGION "ANALOG_OUTPUT_SCALING"
+	            // =============================================================
+	            // 3. ANALOG SPEED OUTPUT (0-27648 ↔ 0-100%)
+	            // =============================================================
+	            // Nếu VFD không chạy hoặc có fault thì luôn đặt 0
+	            IF #o_RunCmd AND NOT #o_Status_Fault THEN
+	                #temp_Speed_Clamped := #i_SpeedSetpoint_Pct;
+	                IF #temp_Speed_Clamped < 0.0 THEN
+	                    #temp_Speed_Clamped := 0.0;
+	                END_IF;
+	                IF #temp_Speed_Clamped > 100.0 THEN
+	                    #temp_Speed_Clamped := 100.0;
+	                END_IF;
+	                #o_AnalogSpeed := REAL_TO_INT(#temp_Speed_Clamped * 276.48);
+	            ELSE
+	                #o_AnalogSpeed := 0;
+	            END_IF;
+	        END_REGION
+END_FUNCTION_BLOCK
+

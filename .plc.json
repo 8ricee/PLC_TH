@@ -1,0 +1,11 @@
+﻿{
+    "name": "Unified_PLC_Project",
+    "description": "Cấu hình cho Dynamic Siemens Language Support",
+    "type": "plc",
+    "libraries": [
+        "./PLC data types",
+        "./Program blocks",
+        "./PLC tags",
+        "./Technology objects"
+    ]
+}

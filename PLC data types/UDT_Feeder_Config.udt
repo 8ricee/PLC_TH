@@ -1,0 +1,30 @@
+TYPE "UDT_Feeder_Config"
+VERSION : 0.1
+   STRUCT
+      MaxFlowRate : Real;   // Công suất max (kg/h)
+      WeighSpan : Real;   // Chiều dài đoạn cân (m)
+      WheelDiameter : Real;   // Đường kính Rulo (mm)
+      PulsePerRev : Int;   // Số xung Encoder/vòng
+      LoadcellCapacity : Real;   // Tải max loadcell (kg)
+      DevAlarm_Pct : Real := 15.0;   // Ngưỡng lệch cảnh báo (% so với SP), VD: 15%
+      DevAlarm_Delay_sec : Real := 5.0;   // Thời gian chờ trước khi báo lệch (giây)
+      InFlight_kg : Real := 0.5;   // Khối lượng bù vật liệu rơi (kg)
+      Dribble_Pct : Real := 10.0;   // % còn lại so với Target để chuyển sang Dribble
+      Dribble_Speed_Pct : Real := 25.0;   // Tốc độ Dribble (% so với tốc độ chuẩn)
+      MaxSpeed_mps : Real := 1.0;        // Tốc độ băng tải tối đa (m/s) - Dùng cho Simulation
+      Sim_Weight_kg : Real := 10.0;      // Khối lượng giả lập trên cân (kg)
+      Sim_Noise_Pct : Real := 1.0;       // Biên độ nhiễu tín hiệu giả lập (%)
+      Sim_Variation_Pct : Real := 5.0;   // Độ biến thiên khối lượng giả lập (%)
+      // ----------------------------------------------------------------
+      // PID CONFIGURATION (Per-feeder PID tuning parameters)
+      // ----------------------------------------------------------------
+      PID_Kp : Real := 1.0;          // Hệ số P (Proportional)
+      PID_Ti : Real := 10.0;         // Hệ số I (Integral) - thời gian tích phân (s)
+      PID_Td : Real := 0.1;          // Hệ số D (Derivative) - thời gian đạo hàm (s)
+      PID_OutputMin : Real := 0.0;   // Giới hạn output PID thấp nhất (%)
+      PID_OutputMax : Real := 100.0; // Giới hạn output PID cao nhất (%)
+      PID_Deadband : Real := 0.0;    // Vùng chết (small deadband)
+   END_STRUCT;
+
+END_TYPE
+
