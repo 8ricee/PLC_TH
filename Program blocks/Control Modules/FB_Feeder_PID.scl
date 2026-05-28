@@ -110,7 +110,7 @@ BEGIN
 	END_IF;
 	
 	#io_PID(Setpoint     := #temp_Setpoint,
-	        Input        := #i_Actual_FlowRate,
+	        Input        := MAX(IN1 := 0.0, IN2 := #i_Actual_FlowRate), // Kẹp ≥ 0: Lưu lượng âm không có ý nghĩa vật lý
 	        ManualEnable := #temp_ManualEnable,
 	        ManualValue  := #temp_ManualValue,
 	        Reset        := #temp_PID_Reset,
@@ -152,7 +152,7 @@ BEGIN
 	    #io_PID.sPid_Cmpt.r_Lmn_Hlm := #io_Config.PID_OutputMax;
 	    #io_PID.sPid_Cmpt.r_Lmn_Llm := #io_Config.PID_OutputMin;
 	    #io_PID.sPid_Cmpt.r_Pv_Hlm  := #io_Config.MaxFlowRate;
-	    #io_PID.sPid_Cmpt.r_Pv_Llm  := 0.0;
+	    #io_PID.sPid_Cmpt.r_Pv_Llm  := -10.0; // Đổi từ 0.0 thành -10.0 để tránh bị code SCL ghi đè giới hạn dưới khi nạp/reset
 	END_IF;
 
 	// Lệnh lưu thông số (từ PID vào HMI/Config)
@@ -171,6 +171,6 @@ BEGIN
 	#o_State := #temp_PID_Stat;
 	#o_Error := (#temp_PID_Err <> 0);
 	#o_PID_Setpoint := #temp_Setpoint; 
-	#o_PID_Input := #i_Actual_FlowRate;
+	#o_PID_Input := MAX(IN1 := 0.0, IN2 := #i_Actual_FlowRate); // Hiển thị giá trị PID thực nhận (đã kẹp)
 
 END_FUNCTION_BLOCK

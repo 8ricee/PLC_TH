@@ -1,0 +1,355 @@
+         #|Host                |System              |Application         |Subsystem           |Module              |Severity         |Flags     |Timestamp                    |Process/Thread|Text|Filename                 |Line #
+    258636|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:20:02.604765   |37188 (0x6a38)|session: 0002, trace: Trace(): --- Script LogBatchToSQL Triggered ---
+ScriptContext: HMI_RT_1::Overview
+Module: /screen_modules/HMI_RT_1::Overview/Events.js
+Function: Overview_OnLoaded (callback)
+    258635|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:58.554730   |37188 (0xc90) |CStartProgramAppController::CreateExtProcess: ApplicationState state is 1 (0:None 1:Running 2:Terminated 3:Crashed 4:CreateFailed
+    258634|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:58.554728   |37188 (0xc90) |Result b 0 
+    258633|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:58.554709   |37188 (0xc90) |CF_SUCCEEDED(promiseResolve) true 
+    258632|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:58.554705   |37188 (0xc90) |GetReply::CFDISPPARAMS
+    258631|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:58.554691   |37188 (0xc90) |CStartProgramAppController::CallbackAndDisconnectSignals: ObjectPtr:2844979734848
+    258630|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:58.551020   |37188 (0xc90) |CStartProgramAppController::CreateExtProcess: ObjectPtr:2844979734848
+    258629|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:58.551009   |37188 (0x6a38)|session: 0002, trace: Trace(): Tự động mở file qua cmd.exe /c start: D:\Installer\BaoCaoThang_2026_2026-05-25_11-19.html
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_3_OnDown (callback) (callback) (callback)
+    258628|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:58.550962   |37188 (0x6a38)|emited createProcessInStartProgramAppController
+    258627|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:58.550926   |37188 (0x6a38)|Thread 27192 is already running
+    258626|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:58.550917   |37188 (0x6a38)|CStartProgramThreadHelper::startApplicationControllerInThread
+    258625|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:58.550911   |37188 (0x6a38)|CStartProgramAppController::CStartProgramAppController with ID:0 ObjectPtr:2844979734848
+    258624|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:58.550830   |37188 (0x6a38)|StartProgram: Path cmd.exe Arguments /c start "" "D:\Installer\BaoCaoThang_2026_2026-05-25_11-19.html"
+    258623|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:58.550821   |37188 (0x6a38)|SFStartProgramPlugin::Execute
+    258622|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:58.550817   |37188 (0x6a38)|session: 0002, trace: StartProgram::initialized::executeplugin
+    258621|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:58.550814   |37188 (0x6a38)|GetReply::constructor
+    258620|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:58.550809   |37188 (0x6a38)|session: 0002, trace: StartProgram waitForProgramToEnd FALSE
+    258619|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:58.550806   |37188 (0x6a38)|session: 0002, trace: StartProgram displayModestr 1
+    258618|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:58.550802   |37188 (0x6a38)|session: 0002, trace: StartProgram programParamsstr /c start "" "D:\Installer\BaoCaoThang_2026_2026-05-25_11-19.html"
+    258617|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:58.550797   |37188 (0x6a38)|session: 0002, trace: StartProgram programNamestr cmd.exe
+    258616|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:58.550788   |37188 (0x6a38)|session: 0002, trace: ScriptSysFctImpl::Invoke() localSystemId 1, remoteSystemId 1
+    258615|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:58.550778   |37188 (0x6a38)|session: 0002, trace: ScriptSysFctImpl::Invoke() localSystemId 1, remoteSystemId 1
+    258614|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:58.550524   |37188 (0x6a38)|session: 0002, trace: Trace(): Xuất báo cáo tổng hợp tháng thành công! Đường dẫn: D:/Installer/BaoCaoThang_2026_2026-05-25_11-19.html
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_3_OnDown (callback) (callback) (callback)
+    258613|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:58.549646   |37188 (0x6a38)|session: 0002, trace: Trace(): GetMonthlyStats: Got 1 months.
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_3_OnDown (callback) (callback)
+    258612|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:58.474836   |37188 (0x6a38)|session: 0002, trace: Trace(): === GetMonthlyStats: Querying monthly aggregation ===
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_3_OnDown
+    258611|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:58.474678   |37188 (0x6a38)|session: 0002, trace: Trace(): === Bắt đầu xuất Báo cáo Tổng hợp Tháng ===
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_3_OnDown
+    258610|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:57.587336   |37188 (0x6a38)|session: 0002, trace: Trace(): --- Script LogBatchToSQL Triggered ---
+ScriptContext: HMI_RT_1::Overview
+Module: /screen_modules/HMI_RT_1::Overview/Events.js
+Function: Overview_OnLoaded (callback)
+    258609|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:57.335139   |37188 (0xc90) |CStartProgramAppController::CreateExtProcess: ApplicationState state is 1 (0:None 1:Running 2:Terminated 3:Crashed 4:CreateFailed
+    258608|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:57.335137   |37188 (0xc90) |Result b 0 
+    258607|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:57.335120   |37188 (0xc90) |CF_SUCCEEDED(promiseResolve) true 
+    258606|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:57.335115   |37188 (0xc90) |GetReply::CFDISPPARAMS
+    258605|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:57.335099   |37188 (0xc90) |CStartProgramAppController::CallbackAndDisconnectSignals: ObjectPtr:2844995680992
+    258604|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:57.331414   |37188 (0x6a38)|session: 0002, trace: Trace(): Tự động mở file qua cmd.exe /c start: D:\Installer\BaoCaoLichSu_ChiTiet_2026-05-25_11-19-57.html
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_4_OnDown (callback)
+    258603|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:57.331394   |37188 (0xc90) |CStartProgramAppController::CreateExtProcess: ObjectPtr:2844995680992
+    258602|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:57.331341   |37188 (0x6a38)|emited createProcessInStartProgramAppController
+    258601|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:57.331311   |37188 (0x6a38)|Thread 27192 is already running
+    258600|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:57.331303   |37188 (0x6a38)|CStartProgramThreadHelper::startApplicationControllerInThread
+    258599|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:57.331296   |37188 (0x6a38)|CStartProgramAppController::CStartProgramAppController with ID:0 ObjectPtr:2844995680992
+    258598|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:57.331257   |37188 (0x6a38)|StartProgram: Path cmd.exe Arguments /c start "" "D:\Installer\BaoCaoLichSu_ChiTiet_2026-05-25_11-19-57.html"
+    258597|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:57.331247   |37188 (0x6a38)|SFStartProgramPlugin::Execute
+    258596|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:57.331244   |37188 (0x6a38)|session: 0002, trace: StartProgram::initialized::executeplugin
+    258595|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:57.331240   |37188 (0x6a38)|GetReply::constructor
+    258594|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:57.331235   |37188 (0x6a38)|session: 0002, trace: StartProgram waitForProgramToEnd FALSE
+    258593|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:57.331220   |37188 (0x6a38)|session: 0002, trace: StartProgram displayModestr 1
+    258592|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:57.331216   |37188 (0x6a38)|session: 0002, trace: StartProgram programParamsstr /c start "" "D:\Installer\BaoCaoLichSu_ChiTiet_2026-05-25_11-19-57.html"
+    258591|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:57.331212   |37188 (0x6a38)|session: 0002, trace: StartProgram programNamestr cmd.exe
+    258590|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:57.331203   |37188 (0x6a38)|session: 0002, trace: ScriptSysFctImpl::Invoke() localSystemId 1, remoteSystemId 1
+    258589|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:57.331191   |37188 (0x6a38)|session: 0002, trace: ScriptSysFctImpl::Invoke() localSystemId 1, remoteSystemId 1
+    258588|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:57.330939   |37188 (0x6a38)|session: 0002, trace: Trace(): Xuất báo cáo Lịch sử thành công! Đường dẫn: D:/Installer/BaoCaoLichSu_ChiTiet_2026-05-25_11-19-57.html
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_4_OnDown (callback)
+    258587|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:57.329587   |37188 (0x6a38)|session: 0002, trace: Trace(): === Bắt đầu xuất báo cáo Lịch sử Chi tiết ===
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_4_OnDown
+    258586|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:57.150158   |37188 (0xc90) |CStartProgramAppController::CreateExtProcess: ApplicationState state is 1 (0:None 1:Running 2:Terminated 3:Crashed 4:CreateFailed
+    258585|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:57.150156   |37188 (0xc90) |Result b 0 
+    258584|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:57.150133   |37188 (0xc90) |CF_SUCCEEDED(promiseResolve) true 
+    258583|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:57.150128   |37188 (0xc90) |GetReply::CFDISPPARAMS
+    258582|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:57.150114   |37188 (0xc90) |CStartProgramAppController::CallbackAndDisconnectSignals: ObjectPtr:2844995680992
+    258581|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:57.138125   |37188 (0xc90) |CStartProgramAppController::CreateExtProcess: ObjectPtr:2844995680992
+    258580|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:57.138095   |37188 (0x6a38)|session: 0002, trace: Trace(): Tự động mở file qua cmd.exe /c start: D:\Installer\BaoCaoLichSu_ChiTiet_2026-05-25_11-19-57.html
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_4_OnDown (callback)
+    258579|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:57.138060   |37188 (0x6a38)|emited createProcessInStartProgramAppController
+    258578|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:57.138030   |37188 (0x6a38)|Thread 27192 is already running
+    258577|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:57.138024   |37188 (0x6a38)|CStartProgramThreadHelper::startApplicationControllerInThread
+    258576|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:57.138018   |37188 (0x6a38)|CStartProgramAppController::CStartProgramAppController with ID:0 ObjectPtr:2844995680992
+    258575|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:57.137985   |37188 (0x6a38)|StartProgram: Path cmd.exe Arguments /c start "" "D:\Installer\BaoCaoLichSu_ChiTiet_2026-05-25_11-19-57.html"
+    258574|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:57.137977   |37188 (0x6a38)|SFStartProgramPlugin::Execute
+    258573|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:57.137973   |37188 (0x6a38)|session: 0002, trace: StartProgram::initialized::executeplugin
+    258572|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:57.137971   |37188 (0x6a38)|GetReply::constructor
+    258571|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:57.137966   |37188 (0x6a38)|session: 0002, trace: StartProgram waitForProgramToEnd FALSE
+    258570|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:57.137964   |37188 (0x6a38)|session: 0002, trace: StartProgram displayModestr 1
+    258569|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:57.137961   |37188 (0x6a38)|session: 0002, trace: StartProgram programParamsstr /c start "" "D:\Installer\BaoCaoLichSu_ChiTiet_2026-05-25_11-19-57.html"
+    258568|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:57.137958   |37188 (0x6a38)|session: 0002, trace: StartProgram programNamestr cmd.exe
+    258567|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:57.137951   |37188 (0x6a38)|session: 0002, trace: ScriptSysFctImpl::Invoke() localSystemId 1, remoteSystemId 1
+    258566|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:57.137942   |37188 (0x6a38)|session: 0002, trace: ScriptSysFctImpl::Invoke() localSystemId 1, remoteSystemId 1
+    258565|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:57.137726   |37188 (0x6a38)|session: 0002, trace: Trace(): Xuất báo cáo Lịch sử thành công! Đường dẫn: D:/Installer/BaoCaoLichSu_ChiTiet_2026-05-25_11-19-57.html
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_4_OnDown (callback)
+    258564|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:57.131074   |37188 (0x6a38)|session: 0002, trace: Trace(): === Bắt đầu xuất báo cáo Lịch sử Chi tiết ===
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_4_OnDown
+    258563|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:56.547316   |37188 (0xc90) |CStartProgramAppController::CreateExtProcess: ApplicationState state is 1 (0:None 1:Running 2:Terminated 3:Crashed 4:CreateFailed
+    258562|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:56.547314   |37188 (0xc90) |Result b 0 
+    258561|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:56.547293   |37188 (0xc90) |CF_SUCCEEDED(promiseResolve) true 
+    258560|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:56.547287   |37188 (0xc90) |GetReply::CFDISPPARAMS
+    258559|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:56.547271   |37188 (0xc90) |CStartProgramAppController::CallbackAndDisconnectSignals: ObjectPtr:2844999096960
+    258558|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:56.535094   |37188 (0xc90) |CStartProgramAppController::CreateExtProcess: ObjectPtr:2844999096960
+    258557|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:56.535055   |37188 (0x6a38)|session: 0002, trace: Trace(): Tự động mở file qua cmd.exe /c start: D:\Installer\BaoCaoLichSu_ChiTiet_2026-05-25_11-19-56.html
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_4_OnDown (callback)
+    258556|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:56.535008   |37188 (0x6a38)|emited createProcessInStartProgramAppController
+    258555|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:56.534975   |37188 (0x6a38)|Thread 27192 is already running
+    258554|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:56.534966   |37188 (0x6a38)|CStartProgramThreadHelper::startApplicationControllerInThread
+    258553|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:56.534960   |37188 (0x6a38)|CStartProgramAppController::CStartProgramAppController with ID:0 ObjectPtr:2844999096960
+    258552|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:56.534918   |37188 (0x6a38)|StartProgram: Path cmd.exe Arguments /c start "" "D:\Installer\BaoCaoLichSu_ChiTiet_2026-05-25_11-19-56.html"
+    258551|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:56.534908   |37188 (0x6a38)|SFStartProgramPlugin::Execute
+    258550|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:56.534904   |37188 (0x6a38)|session: 0002, trace: StartProgram::initialized::executeplugin
+    258549|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:56.534893   |37188 (0x6a38)|GetReply::constructor
+    258548|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:56.534888   |37188 (0x6a38)|session: 0002, trace: StartProgram waitForProgramToEnd FALSE
+    258547|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:56.534885   |37188 (0x6a38)|session: 0002, trace: StartProgram displayModestr 1
+    258546|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:56.534881   |37188 (0x6a38)|session: 0002, trace: StartProgram programParamsstr /c start "" "D:\Installer\BaoCaoLichSu_ChiTiet_2026-05-25_11-19-56.html"
+    258545|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:56.534876   |37188 (0x6a38)|session: 0002, trace: StartProgram programNamestr cmd.exe
+    258544|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:56.534867   |37188 (0x6a38)|session: 0002, trace: ScriptSysFctImpl::Invoke() localSystemId 1, remoteSystemId 1
+    258543|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:56.534854   |37188 (0x6a38)|session: 0002, trace: ScriptSysFctImpl::Invoke() localSystemId 1, remoteSystemId 1
+    258542|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:56.534581   |37188 (0x6a38)|session: 0002, trace: Trace(): Xuất báo cáo Lịch sử thành công! Đường dẫn: D:/Installer/BaoCaoLichSu_ChiTiet_2026-05-25_11-19-56.html
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_4_OnDown (callback)
+    258541|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:56.533149   |37188 (0x6a38)|session: 0002, trace: Trace(): === Bắt đầu xuất báo cáo Lịch sử Chi tiết ===
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_4_OnDown
+    258540|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:55.605657   |37188 (0xc90) |CStartProgramAppController::CreateExtProcess: ApplicationState state is 1 (0:None 1:Running 2:Terminated 3:Crashed 4:CreateFailed
+    258539|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:55.605654   |37188 (0xc90) |Result b 0 
+    258538|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:55.605622   |37188 (0xc90) |CF_SUCCEEDED(promiseResolve) true 
+    258537|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:55.605614   |37188 (0xc90) |GetReply::CFDISPPARAMS
+    258536|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:55.605588   |37188 (0xc90) |CStartProgramAppController::CallbackAndDisconnectSignals: ObjectPtr:2845010612896
+    258535|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:55.601204   |37188 (0xc90) |CStartProgramAppController::CreateExtProcess: ObjectPtr:2845010612896
+    258534|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:55.601184   |37188 (0x6a38)|session: 0002, trace: Trace(): Tự động mở file qua cmd.exe /c start: D:\Installer\BaoCaoThang_2026_2026-05-25_11-19.html
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_2_OnDown (callback) (callback) (callback)
+    258533|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:55.601129   |37188 (0x6a38)|emited createProcessInStartProgramAppController
+    258532|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:55.601101   |37188 (0x6a38)|Thread 27192 is already running
+    258531|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:55.601091   |37188 (0x6a38)|CStartProgramThreadHelper::startApplicationControllerInThread
+    258530|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:55.601085   |37188 (0x6a38)|CStartProgramAppController::CStartProgramAppController with ID:0 ObjectPtr:2845010612896
+    258529|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:55.601042   |37188 (0x6a38)|StartProgram: Path cmd.exe Arguments /c start "" "D:\Installer\BaoCaoThang_2026_2026-05-25_11-19.html"
+    258528|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:55.601033   |37188 (0x6a38)|SFStartProgramPlugin::Execute
+    258527|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:55.601028   |37188 (0x6a38)|session: 0002, trace: StartProgram::initialized::executeplugin
+    258526|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:55.601025   |37188 (0x6a38)|GetReply::constructor
+    258525|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:55.601018   |37188 (0x6a38)|session: 0002, trace: StartProgram waitForProgramToEnd FALSE
+    258524|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:55.601015   |37188 (0x6a38)|session: 0002, trace: StartProgram displayModestr 1
+    258523|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:55.601011   |37188 (0x6a38)|session: 0002, trace: StartProgram programParamsstr /c start "" "D:\Installer\BaoCaoThang_2026_2026-05-25_11-19.html"
+    258522|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:55.601003   |37188 (0x6a38)|session: 0002, trace: StartProgram programNamestr cmd.exe
+    258521|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:55.600990   |37188 (0x6a38)|session: 0002, trace: ScriptSysFctImpl::Invoke() localSystemId 1, remoteSystemId 1
+    258520|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:55.600974   |37188 (0x6a38)|session: 0002, trace: ScriptSysFctImpl::Invoke() localSystemId 1, remoteSystemId 1
+    258519|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:55.600297   |37188 (0x6a38)|session: 0002, trace: Trace(): Xuất báo cáo tổng hợp tháng thành công! Đường dẫn: D:/Installer/BaoCaoThang_2026_2026-05-25_11-19.html
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_2_OnDown (callback) (callback) (callback)
+    258518|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:55.599112   |37188 (0x6a38)|session: 0002, trace: Trace(): GetMonthlyStats: Got 1 months.
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_2_OnDown (callback) (callback)
+    258517|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:55.592767   |37188 (0x6a38)|session: 0002, trace: Trace(): === GetMonthlyStats: Querying monthly aggregation ===
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_2_OnDown
+    258516|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:55.592488   |37188 (0x6a38)|session: 0002, trace: Trace(): === Bắt đầu xuất Báo cáo Tổng hợp Tháng ===
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_2_OnDown
+    258515|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:54.386441   |37188 (0xc90) |CStartProgramAppController::CreateExtProcess: ApplicationState state is 1 (0:None 1:Running 2:Terminated 3:Crashed 4:CreateFailed
+    258514|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:54.386439   |37188 (0xc90) |Result b 0 
+    258513|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:54.386423   |37188 (0xc90) |CF_SUCCEEDED(promiseResolve) true 
+    258512|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:54.386417   |37188 (0xc90) |GetReply::CFDISPPARAMS
+    258511|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:54.386402   |37188 (0xc90) |CStartProgramAppController::CallbackAndDisconnectSignals: ObjectPtr:2844999090464
+    258510|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:54.373451   |37188 (0xc90) |CStartProgramAppController::CreateExtProcess: ObjectPtr:2844999090464
+    258509|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:54.373405   |37188 (0x6a38)|session: 0002, trace: Trace(): Tự động mở file qua cmd.exe /c start: D:\Installer\BaoCaoThang_2026_2026-05-25_11-19.html
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_2_OnDown (callback) (callback) (callback)
+    258508|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:54.373346   |37188 (0x6a38)|emited createProcessInStartProgramAppController
+    258507|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:54.373317   |37188 (0x6a38)|Thread 27192 is already running
+    258506|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:54.373310   |37188 (0x6a38)|CStartProgramThreadHelper::startApplicationControllerInThread
+    258505|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:54.373304   |37188 (0x6a38)|CStartProgramAppController::CStartProgramAppController with ID:0 ObjectPtr:2844999090464
+    258504|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:54.373275   |37188 (0x6a38)|StartProgram: Path cmd.exe Arguments /c start "" "D:\Installer\BaoCaoThang_2026_2026-05-25_11-19.html"
+    258503|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:54.373260   |37188 (0x6a38)|SFStartProgramPlugin::Execute
+    258502|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:54.373257   |37188 (0x6a38)|session: 0002, trace: StartProgram::initialized::executeplugin
+    258501|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:54.373255   |37188 (0x6a38)|GetReply::constructor
+    258500|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:54.373250   |37188 (0x6a38)|session: 0002, trace: StartProgram waitForProgramToEnd FALSE
+    258499|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:54.373248   |37188 (0x6a38)|session: 0002, trace: StartProgram displayModestr 1
+    258498|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:54.373245   |37188 (0x6a38)|session: 0002, trace: StartProgram programParamsstr /c start "" "D:\Installer\BaoCaoThang_2026_2026-05-25_11-19.html"
+    258497|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:54.373242   |37188 (0x6a38)|session: 0002, trace: StartProgram programNamestr cmd.exe
+    258496|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:54.373235   |37188 (0x6a38)|session: 0002, trace: ScriptSysFctImpl::Invoke() localSystemId 1, remoteSystemId 1
+    258495|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:54.373226   |37188 (0x6a38)|session: 0002, trace: ScriptSysFctImpl::Invoke() localSystemId 1, remoteSystemId 1
+    258494|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:54.373009   |37188 (0x6a38)|session: 0002, trace: Trace(): Xuất báo cáo tổng hợp tháng thành công! Đường dẫn: D:/Installer/BaoCaoThang_2026_2026-05-25_11-19.html
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_2_OnDown (callback) (callback) (callback)
+    258493|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:54.370529   |37188 (0x6a38)|session: 0002, trace: Trace(): GetMonthlyStats: Got 1 months.
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_2_OnDown (callback) (callback)
+    258492|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:54.361331   |37188 (0x6a38)|session: 0002, trace: Trace(): === GetMonthlyStats: Querying monthly aggregation ===
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_2_OnDown
+    258491|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:54.360778   |37188 (0x6a38)|session: 0002, trace: Trace(): === Bắt đầu xuất Báo cáo Tổng hợp Tháng ===
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_2_OnDown
+    258490|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:53.495955   |37188 (0xc90) |CStartProgramAppController::CreateExtProcess: ApplicationState state is 1 (0:None 1:Running 2:Terminated 3:Crashed 4:CreateFailed
+    258489|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:53.495953   |37188 (0xc90) |Result b 0 
+    258488|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:53.495934   |37188 (0xc90) |CF_SUCCEEDED(promiseResolve) true 
+    258487|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:53.495931   |37188 (0xc90) |GetReply::CFDISPPARAMS
+    258486|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:53.495918   |37188 (0xc90) |CStartProgramAppController::CallbackAndDisconnectSignals: ObjectPtr:2844979687664
+    258485|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:53.483046   |37188 (0xc90) |CStartProgramAppController::CreateExtProcess: ObjectPtr:2844979687664
+    258484|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:53.483021   |37188 (0x6a38)|session: 0002, trace: Trace(): Tự động mở file qua cmd.exe /c start: D:\Installer\BaoCaoChiTiet_Thang_5_2026_2026-05-25_11-19.html
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_6_OnDown (callback) (callback) (callback)
+    258483|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:53.482984   |37188 (0x6a38)|emited createProcessInStartProgramAppController
+    258482|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:53.482953   |37188 (0x6a38)|Thread 27192 is already running
+    258481|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:53.482947   |37188 (0x6a38)|CStartProgramThreadHelper::startApplicationControllerInThread
+    258480|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:53.482941   |37188 (0x6a38)|CStartProgramAppController::CStartProgramAppController with ID:0 ObjectPtr:2844979687664
+    258479|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:53.482910   |37188 (0x6a38)|StartProgram: Path cmd.exe Arguments /c start "" "D:\Installer\BaoCaoChiTiet_Thang_5_2026_2026-05-25_11-19.html"
+    258478|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:53.482902   |37188 (0x6a38)|SFStartProgramPlugin::Execute
+    258477|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:53.482898   |37188 (0x6a38)|session: 0002, trace: StartProgram::initialized::executeplugin
+    258476|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:53.482896   |37188 (0x6a38)|GetReply::constructor
+    258475|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:53.482891   |37188 (0x6a38)|session: 0002, trace: StartProgram waitForProgramToEnd FALSE
+    258474|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:53.482889   |37188 (0x6a38)|session: 0002, trace: StartProgram displayModestr 1
+    258473|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:53.482886   |37188 (0x6a38)|session: 0002, trace: StartProgram programParamsstr /c start "" "D:\Installer\BaoCaoChiTiet_Thang_5_2026_2026-05-25_11-19.html"
+    258472|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:53.482883   |37188 (0x6a38)|session: 0002, trace: StartProgram programNamestr cmd.exe
+    258471|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:53.482875   |37188 (0x6a38)|session: 0002, trace: ScriptSysFctImpl::Invoke() localSystemId 1, remoteSystemId 1
+    258470|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:53.482866   |37188 (0x6a38)|session: 0002, trace: ScriptSysFctImpl::Invoke() localSystemId 1, remoteSystemId 1
+    258469|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:53.482609   |37188 (0x6a38)|session: 0002, trace: Trace(): Xuất báo cáo chi tiết tháng thành công! Đường dẫn: D:/Installer/BaoCaoChiTiet_Thang_5_2026_2026-05-25_11-19.html
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_6_OnDown (callback) (callback) (callback)
+    258468|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:53.386270   |37188 (0x6a38)|session: 0002, trace: Trace(): Detailed Filter Query: SELECT *, Status AS BatchStatus, CONVERT(VARCHAR, Timestamp_DTL, 120) AS TimeStr FROM [BatchDB].[dbo].[BatchHistory] WHERE YEAR(Timestamp_DTL) = 2026 AND MONTH(Timestamp_DTL) = 5 ORDER BY Timestamp_DTL DESC
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_6_OnDown
+    258467|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:53.386236   |37188 (0x6a38)|session: 0002, trace: Trace(): Querying detailed monthly history for Month=5 Year=2026
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_6_OnDown
+    258466|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:53.385884   |37188 (0x6a38)|session: 0002, trace: Trace(): === Bắt đầu xuất Chi tiết Lịch sử theo Tháng ===
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_6_OnDown
+    258465|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:52.551437   |37188 (0x6a38)|session: 0002, trace: Trace(): --- Script LogBatchToSQL Triggered ---
+ScriptContext: HMI_RT_1::Overview
+Module: /screen_modules/HMI_RT_1::Overview/Events.js
+Function: Overview_OnLoaded (callback)
+    258464|                    |                    |WCCILScs(1)         |SCS                 |EapiTracing         |Verbose          |Details   |2026.05.25 11:19:49.484367   |8088 (0xba30) |Thread attach the hmitr.eapi.tracing.dll
+    258463|                    |                    |WCCILScs(1)         |SCS                 |Server              |Verbose          |Details   |2026.05.25 11:19:49.484335   |8088 (0xba30) |Thread attach the hmitr.scs.rt.dll
+    258462|                    |                    |WCCILScs(1)         |SCS                 |EapiTracing         |Verbose          |Details   |2026.05.25 11:19:49.484136   |8088 (0x3694) |Thread attach the hmitr.eapi.tracing.dll
+    258461|                    |                    |WCCILScs(1)         |SCS                 |Server              |Verbose          |Details   |2026.05.25 11:19:49.484089   |8088 (0x3694) |Thread attach the hmitr.scs.rt.dll
+    258460|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:48.694008   |37188 (0xc90) |CStartProgramAppController::CreateExtProcess: ApplicationState state is 1 (0:None 1:Running 2:Terminated 3:Crashed 4:CreateFailed
+    258459|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:48.694004   |37188 (0xc90) |Result b 0 
+    258458|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:48.693970   |37188 (0xc90) |CF_SUCCEEDED(promiseResolve) true 
+    258457|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:48.693960   |37188 (0xc90) |GetReply::CFDISPPARAMS
+    258456|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:48.693926   |37188 (0xc90) |CStartProgramAppController::CallbackAndDisconnectSignals: ObjectPtr:2844995738496
+    258455|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:48.676389   |37188 (0xc90) |CStartProgramAppController::CreateExtProcess: ObjectPtr:2844995738496
+    258454|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:48.676316   |37188 (0x6a38)|session: 0002, trace: Trace(): Tự động mở file qua cmd.exe /c start: D:\Installer\BaoCaoChiTiet_Nam_2026_2026-05-25_11-19.html
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_5_OnDown (callback) (callback) (callback)
+    258453|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:48.676254   |37188 (0x6a38)|emited createProcessInStartProgramAppController
+    258452|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:48.676225   |37188 (0x6a38)|Thread 27192 is already running
+    258451|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:48.676214   |37188 (0x6a38)|CStartProgramThreadHelper::startApplicationControllerInThread
+    258450|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:48.676197   |37188 (0x6a38)|CStartProgramAppController::CStartProgramAppController with ID:0 ObjectPtr:2844995738496
+    258449|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:48.676153   |37188 (0x6a38)|StartProgram: Path cmd.exe Arguments /c start "" "D:\Installer\BaoCaoChiTiet_Nam_2026_2026-05-25_11-19.html"
+    258448|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:48.676142   |37188 (0x6a38)|SFStartProgramPlugin::Execute
+    258447|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:48.676137   |37188 (0x6a38)|session: 0002, trace: StartProgram::initialized::executeplugin
+    258446|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:48.676133   |37188 (0x6a38)|GetReply::constructor
+    258445|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:48.676127   |37188 (0x6a38)|session: 0002, trace: StartProgram waitForProgramToEnd FALSE
+    258444|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:48.676124   |37188 (0x6a38)|session: 0002, trace: StartProgram displayModestr 1
+    258443|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:48.676120   |37188 (0x6a38)|session: 0002, trace: StartProgram programParamsstr /c start "" "D:\Installer\BaoCaoChiTiet_Nam_2026_2026-05-25_11-19.html"
+    258442|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:48.676115   |37188 (0x6a38)|session: 0002, trace: StartProgram programNamestr cmd.exe
+    258441|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:48.676105   |37188 (0x6a38)|session: 0002, trace: ScriptSysFctImpl::Invoke() localSystemId 1, remoteSystemId 1
+    258440|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:48.676091   |37188 (0x6a38)|session: 0002, trace: ScriptSysFctImpl::Invoke() localSystemId 1, remoteSystemId 1
+    258439|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:48.675708   |37188 (0x6a38)|session: 0002, trace: Trace(): Xuất báo cáo chi tiết năm thành công! Đường dẫn: D:/Installer/BaoCaoChiTiet_Nam_2026_2026-05-25_11-19.html
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_5_OnDown (callback) (callback) (callback)
+    258438|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:48.657878   |37188 (0x6a38)|session: 0002, trace: Trace(): Detailed Filter Query: SELECT *, Status AS BatchStatus, CONVERT(VARCHAR, Timestamp_DTL, 120) AS TimeStr FROM [BatchDB].[dbo].[BatchHistory] WHERE YEAR(Timestamp_DTL) = 2026 ORDER BY Timestamp_DTL DESC
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_5_OnDown
+    258437|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:48.657647   |37188 (0x6a38)|session: 0002, trace: Trace(): Querying detailed yearly history for Year=2026
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_5_OnDown
+    258436|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:48.657439   |37188 (0x6a38)|session: 0002, trace: Trace(): === Bắt đầu xuất Chi tiết Lịch sử theo Năm ===
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_5_OnDown
+    258435|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:47.538580   |37188 (0x6a38)|session: 0002, trace: Trace(): --- Script LogBatchToSQL Triggered ---
+ScriptContext: HMI_RT_1::Overview
+Module: /screen_modules/HMI_RT_1::Overview/Events.js
+Function: Overview_OnLoaded (callback)
+    258434|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:42.524739   |37188 (0x6a38)|session: 0002, trace: Trace(): --- Script LogBatchToSQL Triggered ---
+ScriptContext: HMI_RT_1::Overview
+Module: /screen_modules/HMI_RT_1::Overview/Events.js
+Function: Overview_OnLoaded (callback)
+    258433|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:39.744015   |37188 (0xc90) |CStartProgramAppController::CreateExtProcess: ApplicationState state is 1 (0:None 1:Running 2:Terminated 3:Crashed 4:CreateFailed
+    258432|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:39.744013   |37188 (0xc90) |Result b 0 
+    258431|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:39.743991   |37188 (0xc90) |CF_SUCCEEDED(promiseResolve) true 
+    258430|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:39.743986   |37188 (0xc90) |GetReply::CFDISPPARAMS
+    258429|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:39.743973   |37188 (0xc90) |CStartProgramAppController::CallbackAndDisconnectSignals: ObjectPtr:2845007644384
+    258428|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:39.730331   |37188 (0xc90) |CStartProgramAppController::CreateExtProcess: ObjectPtr:2845007644384
+    258427|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:39.730330   |37188 (0x6a38)|session: 0002, trace: Trace(): Tự động mở file qua cmd.exe /c start: D:\Installer\BaoCao_LIVE_ChiTiet_2026-05-25_11-19-39.html
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_1_OnDown (callback)
+    258426|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:39.730271   |37188 (0x6a38)|emited createProcessInStartProgramAppController
+    258425|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:39.730173   |37188 (0x6a38)|Thread 27192 is already running
+    258424|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:39.730164   |37188 (0x6a38)|CStartProgramThreadHelper::startApplicationControllerInThread
+    258423|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:39.730157   |37188 (0x6a38)|CStartProgramAppController::CStartProgramAppController with ID:0 ObjectPtr:2845007644384
+    258422|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:39.730117   |37188 (0x6a38)|StartProgram: Path cmd.exe Arguments /c start "" "D:\Installer\BaoCao_LIVE_ChiTiet_2026-05-25_11-19-39.html"
+    258421|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |SFStartProgramPlugin|Info             |          |2026.05.25 11:19:39.730107   |37188 (0x6a38)|SFStartProgramPlugin::Execute
+    258420|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:39.730103   |37188 (0x6a38)|session: 0002, trace: StartProgram::initialized::executeplugin
+    258419|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:39.730100   |37188 (0x6a38)|GetReply::constructor
+    258418|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:39.730094   |37188 (0x6a38)|session: 0002, trace: StartProgram waitForProgramToEnd FALSE
+    258417|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:39.730091   |37188 (0x6a38)|session: 0002, trace: StartProgram displayModestr 1
+    258416|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:39.730087   |37188 (0x6a38)|session: 0002, trace: StartProgram programParamsstr /c start "" "D:\Installer\BaoCao_LIVE_ChiTiet_2026-05-25_11-19-39.html"
+    258415|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:39.730081   |37188 (0x6a38)|session: 0002, trace: StartProgram programNamestr cmd.exe
+    258414|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:39.730073   |37188 (0x6a38)|session: 0002, trace: ScriptSysFctImpl::Invoke() localSystemId 1, remoteSystemId 1
+    258413|                    |SIM_Final           |GfxRTS(22)          |SystemFunction      |ScriptDeviceObjectModel|Info             |          |2026.05.25 11:19:39.730053   |37188 (0x6a38)|session: 0002, trace: ScriptSysFctImpl::Invoke() localSystemId 1, remoteSystemId 1
+    258412|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:39.729751   |37188 (0x6a38)|session: 0002, trace: Trace(): Xuất mẻ LIVE chi tiết thành công! Đường dẫn: D:/Installer/BaoCao_LIVE_ChiTiet_2026-05-25_11-19-39.html
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_1_OnDown (callback)
+    258411|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptTagObjectModel|Warning          |          |2026.05.25 11:19:39.725172   |37188 (0xb70c)|session: 0002, trace: HmiTag: Tag 'DB_HMI_Data_System_Status_Current_Batch' does not exist
+    258410|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptTagObjectModel|Warning          |          |2026.05.25 11:19:39.724898   |37188 (0x98fc)|session: 0002, trace: HmiTag: Tag 'DB_HMI_Data_Recipe_Current_Recipe.BatchNumber' does not exist
+    258409|                    |SIM_Final           |GfxRTS(22)          |ScriptFW            |ScriptHMIRuntime    |Info             |          |2026.05.25 11:19:39.724150   |37188 (0x6a38)|session: 0002, trace: Trace(): === Bắt đầu xuất chi tiết Mẻ hiện tại (24 cột) ===
+ScriptContext: HMI_RT_1::History
+Module: /screen_modules/sw_Content/HMI_RT_1::History/Events.js
+Function: Button_1_OnDown

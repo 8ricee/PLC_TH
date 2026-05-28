@@ -1,4 +1,4 @@
-﻿FUNCTION_BLOCK "FB_Encoder_SpeedCalc"
+FUNCTION_BLOCK "FB_Encoder_SpeedCalc"
 { S7_Optimized_Access := 'TRUE' }
 VERSION : 0.2
    VAR_INPUT 
@@ -10,7 +10,7 @@ VERSION : 0.2
 
    VAR_OUTPUT 
       o_Speed_RPM : Real;   // Tốc độ vòng quay của Rulo (Vòng/Phút)
-      o_Speed_MPM : Real;   // [FIX-N2] Tốc độ dài của băng tải (Mét/Phút — MPM = Meters Per Minute)
+      o_Speed_MPS : Real;   // Tốc độ dài của băng tải (Mét/Giây — MPS = Meters Per Second)
       o_Frequency_Hz : Real;   // Khôi phục lại Tần số thực tế (Hz) dùng cho giao diện
    END_VAR
 
@@ -39,7 +39,7 @@ BEGIN
 	    // =============================================================
 	    IF (#i_PulsePerRev <= 0) OR (#i_WheelDiameter_mm <= 0) OR (#i_CycleTime_sec <= 0.0) THEN
 	        #o_Speed_RPM := 0.0;
-	        #o_Speed_MPM := 0.0;
+	        #o_Speed_MPS := 0.0;
 	        #o_Frequency_Hz := 0.0;
 	        RETURN;
 	    END_IF;
@@ -50,7 +50,7 @@ BEGIN
 	        #stat_PrevCount := #i_HSC_Count;
 	        #stat_Initialized := TRUE;
 	        #o_Speed_RPM := 0.0;
-	        #o_Speed_MPM := 0.0;
+	        #o_Speed_MPS := 0.0;
 	        #o_Frequency_Hz := 0.0;
 	        #stat_Frequency_Filtered := 0.0;
 	        RETURN;
@@ -103,11 +103,7 @@ BEGIN
 	    // D. Tính chu vi Rulo (đổi mm sang m)
 	    #temp_Circumference_m := #PI * (#i_WheelDiameter_mm / 1000.0);
 	    
-	    // E. Tính tốc độ dài (m/s)
-	    // #o_Speed_MPM := (#o_Speed_RPM / 60.0) * #temp_Circumference_m;
-
-		// F. Tính tốc độ dài (m/ph)
-    	#o_Speed_MPM := #o_Speed_RPM * #temp_Circumference_m; 
+	    // E. Tính tốc độ dài (Mét/Giây — m/s)
+	    #o_Speed_MPS := (#o_Speed_RPM / 60.0) * #temp_Circumference_m;
 	END_REGION
 END_FUNCTION_BLOCK
-

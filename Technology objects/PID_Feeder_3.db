@@ -10,12 +10,19 @@ PID_Compact
 
 BEGIN
    sby_EsData_1 := 16#01;
-   si_Unit := 1;
-   si_Type := 9;
+   si_Unit := 24;
+   si_Type := 4;
    sPid_Cmpt.b_Input_PER_On := FALSE;
    sPid_Cmpt.r_Pv_Hlm := 10000.0;
+   sPid_Cmpt.r_Pv_Llm := -10.0;
    sPid_Cmpt.r_Pv_HWrn := 10000.0;
    sPid_Cmpt.r_Pv_LWrn := 0.0;
+   sRet.r_Ctrl_Gain := 0.01180363;
+   sRet.r_Ctrl_Ti := 1.347968;
+   sRet.r_Ctrl_Td := 0.3620005;
+   sRet.r_Ctrl_A := 0.1;
+   sRet.r_Ctrl_B := 0.5827278;
+   sRet.r_Ctrl_Cycle := 0.09998912;
 
 END_DATA_BLOCK
 

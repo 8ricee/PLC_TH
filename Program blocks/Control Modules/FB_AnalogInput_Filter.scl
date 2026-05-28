@@ -38,7 +38,8 @@ BEGIN
 	            // PHẦN 1: KIỂM TRA LỖI PHẦN CỨNG (HARDWARE DIAGNOSTICS) 
 	            // =============================================================
 	            // Nếu giá trị Raw vượt quá ngưỡng cho phép (Đứt dây hoặc Quá tải)
-	            IF (#i_RawValue > 32511) OR (#i_RawValue < -200) THEN
+	            // Sử dụng chuẩn Siemens S7 (Underflow = -4864 tương đương 1.18mA, Overflow = 32511)
+	            IF (#i_RawValue > 32511) OR (#i_RawValue < -4864) THEN
 	                #o_Error := TRUE;
 	                // #o_ScaledValue := 0.0;
 	                RETURN; // Thoát ngay, không tính toán nữa

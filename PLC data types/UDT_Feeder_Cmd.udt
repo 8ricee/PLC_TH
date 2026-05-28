@@ -9,6 +9,7 @@ VERSION : 0.1
       Setpoint_Flow : Real;   // Setpoint lưu lượng (kg/h) - Dùng cho Auto
       Target_Weight : Real;   // Khối lượng cần cân (kg) - Dùng để ngắt 
       Simulation : Bool;   // Chế độ mô phỏng (Không cần phần cứng)
+      Infinite_Batch : Bool;    // Mẻ chạy vô hạn (Target_Production <= 0.001)
       ManualSpeed_HMI : Real;   // Tốc độ chạy tay nhập từ HMI (0-100%)
       Clear_Totalizer : Bool;   // Lệnh xóa khối lượng tích lũy (Cấp mẻ mới hoặc xóa tay)
 

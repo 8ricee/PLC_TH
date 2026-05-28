@@ -9,6 +9,7 @@ VERSION : 0.1
       Fault_Encoder : Bool;   // Lỗi Encoder (Đứt dây/Kẹt)
       Alarm_DevHigh : Bool;   // Cảnh báo lệch CAO (Flow > SP + X%)
       Alarm_DevLow : Bool;   // Cảnh báo lệch THẤP (Flow < SP - X%)
+      Alarm_Empty : Bool;     // Cảnh báo hết liệu (Khối lượng < 10% Loadcell khi đang chạy)
       Done : Bool;   // Đã cân đủ khối lượng
       Dribble_Active : Bool;   // Đang giảm tốc cuối mẻ
       Actual_FlowRate : Real;   // Lưu lượng tức thời (kg/h)

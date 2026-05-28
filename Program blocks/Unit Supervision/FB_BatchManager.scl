@@ -130,7 +130,7 @@ BEGIN
 	        #stat_Cmds[#idx].Start := FALSE;
 	        #stat_Cmds[#idx].Stop := TRUE;
 	        #stat_Cmds[#idx].Reset := TRUE;
-	        #stat_Cmds[#idx].Clear_Totalizer := TRUE;
+	        #stat_Cmds[#idx].Clear_Totalizer := (#o_System_State = 0); // CHỈ xoá bộ cộng dồn khi hệ thống đang ở IDLE (State 0)
 	    ELSE
 	        // Chế độ bình thường: Kết hợp lệnh Reset/Clear từ SM và từ HMI tay
 	        #stat_Cmds[#idx].Reset := #stat_Cmds[#idx].Reset OR #io_Manual_Cmds[#idx].Reset;
@@ -142,6 +142,12 @@ BEGIN
 	        // =============================================================
 	        // LOGIC CHẠY THỬ (TEST MODE)
 	        // =============================================================
+	        // Khóa chế độ chạy thử nếu hệ thống đang chạy tự động (DOSING - State 30)
+	        // Chỉ cho phép kích hoạt chạy thử khi hệ thống ở IDLE (0), PAUSED (99) hoặc FAULT (90)
+	        IF #o_System_State = 30 THEN
+	            #io_Manual_Cmds[#idx].Test_Mode := FALSE;
+	        END_IF;
+
 	        IF #io_Manual_Cmds[#idx].Test_Mode THEN
 	            #stat_Cmds[#idx].Test_Mode := TRUE;
 	            #stat_Cmds[#idx].Test_Target_Weight := #io_Manual_Cmds[#idx].Test_Target_Weight;
@@ -290,8 +296,8 @@ BEGIN
 	    // Sao chép trạng thái nội bộ ra ngõ ra HMI  
 	    #o_Feeders_Status[#idx] := #stat_Feeders_Status[#idx];
 	    
-	    // Kiểm tra lỗi từng cân và gán vào Bit-pattern Error_ID
-	    IF #stat_Feeders_Status[#idx].Fault THEN 
+	    // Kiểm tra lỗi/cảnh báo từng cân và gán vào Bit-pattern Error_ID (Đưa cả cảnh báo hết liệu ra còi/đèn lỗi vật lý)
+	    IF #stat_Feeders_Status[#idx].Fault OR #stat_Feeders_Status[#idx].Alarm_Empty THEN 
 	        #o_System_Error := TRUE;
 	        #o_Error_ID := #o_Error_ID OR SHL(IN := WORD#16#0001, N := INT_TO_USINT(#idx - 1));
 	    END_IF;

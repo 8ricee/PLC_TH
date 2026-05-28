@@ -102,7 +102,8 @@ BEGIN
 	REGION SENSOR_PROCESSING
 	    // Lựa chọn giữa tín hiệu phần cứng thực và tín hiệu mô phỏng
 	    IF #i_Cmd.Simulation THEN
-	        #temp_RawValue := #temp_HW_Loadcell_Sim;
+	        // #temp_RawValue := #temp_HW_Loadcell_Sim;
+			#temp_RawValue := #i_HW_Loadcell_Raw;
 	    ELSE
 	        #temp_RawValue := #i_HW_Loadcell_Raw;
 	    END_IF;
@@ -144,9 +145,9 @@ BEGIN
 	                    i_PulsePerRev := #io_Config.PulsePerRev,
 	                    i_WheelDiameter_mm := #io_Config.WheelDiameter,
 	                    i_CycleTime_sec := #i_CycleTime_sec,
-	                    o_Speed_MPM => #io_Status.Belt_Speed);
+	                    o_Speed_MPS => #io_Status.Belt_Speed);
 	    
-	    #temp_Raw_FlowRate := #io_Status.Load_Density * #io_Status.Belt_Speed * 60.0;
+	    #temp_Raw_FlowRate := #io_Status.Load_Density * #io_Status.Belt_Speed * 3600.0;
 	    
 	    IF NOT #io_Status.Running THEN
 	        #stat_FlowRate_Filtered := #temp_Raw_FlowRate;
@@ -158,19 +159,29 @@ BEGIN
 	    
 	    // Xác định trạng thái "Đang có dòng liệu" (Nội bộ)
 	    // Đếm bất cứ khi nào băng tải quay (dù chạy Auto hay gạt sang Local chạy bằng biến trở)
-	    #temp_Actual_Running := #io_Status.Running OR (#io_Status.Belt_Speed > 0.01);
+	    #temp_Actual_Running := #io_Status.Running OR (#io_Status.Belt_Speed > 0.0002);
 	    
 	    // Xóa bộ lọc cũ và override mô phỏng thủ công (Nay đã có FB_Feeder_Sim xử lý)  
 	    
-	    IF #io_Status.Running AND (#stat_Final_Speed_Pct > 5.0) AND (#io_Status.Belt_Speed < 0.001) AND NOT #i_Cmd.Simulation AND NOT #i_HW_LocalMode THEN
+	    // Kiểm tra trượt băng / đứt cáp Encoder: Khi cân đang chạy (VFD output > 5.0%) nhưng tốc độ phản hồi từ Encoder quá thấp
+	    // Ngưỡng phát hiện lỗi là dưới 0.0002 m/s tuyệt đối (tương đương 0.012 m/phút) HOẶC dưới 20% tốc độ mong muốn (nếu MaxSpeed_mps được cài đặt)
+	    IF #io_Status.Running AND (#stat_Final_Speed_Pct > 5.0) AND NOT #i_Cmd.Simulation AND NOT #i_HW_LocalMode AND (
+	        (#io_Status.Belt_Speed < 0.0002) OR 
+	        (#io_Config.MaxSpeed_mps > 0.01 AND #io_Status.Belt_Speed < ((#stat_Final_Speed_Pct / 100.0) * #io_Config.MaxSpeed_mps * 0.20))
+	    ) THEN
 	        #stat_EncFault_Timer := #stat_EncFault_Timer + #i_CycleTime_sec;
 	        IF #stat_EncFault_Timer > 5.0 THEN
 	            #io_Status.Fault_Encoder := TRUE;
 	        END_IF;
 	    ELSE
 	        #stat_EncFault_Timer := 0.0;
-	        // Tự động giải trừ lỗi Encoder khi tốc độ phản hồi bình thường hoặc khi dừng chạy cân
-	        #io_Status.Fault_Encoder := FALSE;
+	        // CHỈ giải trừ lỗi Encoder khi có xung Reset từ HMI (hoặc khi tốc độ thực tế hồi phục khi cân đang chạy)
+	        IF #i_Cmd.Reset OR (#io_Status.Running AND NOT (
+	            (#io_Status.Belt_Speed < 0.0002) OR 
+	            (#io_Config.MaxSpeed_mps > 0.01 AND #io_Status.Belt_Speed < ((#stat_Final_Speed_Pct / 100.0) * #io_Config.MaxSpeed_mps * 0.20))
+	        )) THEN
+	            #io_Status.Fault_Encoder := FALSE;
+	        END_IF;
 	    END_IF;
 	    
 	    // (Auto-Zero Tracking đã được gỡ bỏ theo yêu cầu - xử lý trực tiếp trên đầu cân)
@@ -218,8 +229,14 @@ BEGIN
 	
 	REGION OUTPUT_PROCESSING
 	    // --- ĐIỀU KIỆN LỖI GẠT LOCAL ---
-	    // Khi đang chạy Auto có target mà gạt Local → lỗi
-	    #temp_Fault_LocalInBatch := (#i_Cmd.Target_Weight > 0.1) AND #i_HW_LocalMode AND #i_Cmd.AutoMode;
+	    // Khi đang chạy Auto có target mà gạt Local (Chỉ báo lỗi nếu không phải mẻ vô hạn)
+	    #temp_Fault_LocalInBatch := (#i_Cmd.Target_Weight > 0.1) AND #i_HW_LocalMode AND #i_Cmd.AutoMode AND NOT #i_Cmd.Infinite_Batch;
+	    
+	    // --- ÉP TỐC ĐỘ VỀ 0 KHI GẠT LOCAL TRONG MẺ VÔ HẠN ---
+	    IF #i_HW_LocalMode AND #i_Cmd.Infinite_Batch THEN
+	        #stat_Final_Speed_Pct := 0.0;
+	        #o_PID_Setpoint := 0.0;
+	    END_IF;
 
 	    // --- OVERRIDE TỐC ĐỘ KHI ĐO CƠ KHÍ ---
 	    IF #i_Cmd.Test_MechCalib_Mode AND #i_Cmd.Test_Mode THEN
@@ -250,6 +267,9 @@ BEGIN
 	    
 	    // Lỗi Quá tải Loadcell (Instantaneous)
 	    #io_Status.Fault_Overload := (#temp_Weight_Total > #io_Config.LoadcellCapacity) AND (#io_Config.LoadcellCapacity > 0.0);
+	    
+	    // Lỗi Cảm biến mở rộng: Khối lượng < -10 kg = cảm biến hỏng thật (không phải nhiễu tare bình thường)
+	    #io_Status.Fault_Sensor := #io_Status.Fault_Sensor OR (#temp_Weight_Total < -10.0);
 	    
 	    #inst_VFD(i_Enable := #temp_Enable_Drive,
 	              i_StartCmd := #i_Cmd.Start OR (#io_MechCalib.Cmd_Start AND #i_Cmd.Test_Mode AND #i_Cmd.Test_MechCalib_Mode),
@@ -285,9 +305,15 @@ BEGIN
 	                 i_Simulation := #i_Cmd.Simulation, 
 	                 i_LocalMode := #i_HW_LocalMode,
 	                 i_CycleTime_sec := #i_CycleTime_sec,
+	                 i_Speed_Pct := #io_Status.Speed_Pct,
+	                 i_Fault_Encoder := #io_Status.Fault_Encoder,
+	                 i_Reset := #i_Cmd.Reset,
+	                 i_Actual_Weight := #temp_Weight_Total,
+	                 i_LoadcellCapacity := #io_Config.LoadcellCapacity,
 	                 io_Config := #io_Config,
 	                 o_Alarm_DevHigh => #io_Status.Alarm_DevHigh,
-	                 o_Alarm_DevLow => #io_Status.Alarm_DevLow);
+	                 o_Alarm_DevLow => #io_Status.Alarm_DevLow,
+	                 o_Alarm_Empty => #io_Status.Alarm_Empty);
 	END_REGION
 	
 	REGION MECHANICAL_CALIBRATION
@@ -300,20 +326,46 @@ BEGIN
 	END_REGION
 	
 	REGION STATE_EVALUATION
-	    IF #io_Status.Fault THEN
-	        #stat_FeedState := #STATE_FAULT;
-	    ELSIF #io_Calib_Data.Cmd_SetZero OR #io_Calib_Data.Cmd_SetSpan OR (#io_Status.Calib_Status_Code = 1) OR (#io_Status.Calib_Status_Code = 2) OR (#io_Status.Calib_Status_Code = 3) THEN
-	        #stat_FeedState := #STATE_CALIB;
+	    // --- PHÂN LOẠI ƯU TIÊN TRẠNG THÁI PLC (ĐỒNG BỘ TEXT LIST HMI - 0S DELAY) ---
+	    // 1. Nhóm lỗi phần cứng vật lý nghiêm trọng
+	    IF #io_Status.Fault_VFD THEN
+	        #stat_FeedState := 1;  // LỖI BIẾN TẦN
+	    ELSIF #io_Status.Fault_Overload THEN
+	        #stat_FeedState := 2;  // QUÁ TẢI CÂN
+	    ELSIF #io_Status.Fault_Sensor THEN
+	        #stat_FeedState := 3;  // LỖI CẢM BIẾN
+	    ELSIF #io_Status.Fault_Encoder THEN
+	        #stat_FeedState := 4;  // LỖI TRƯỢT BĂNG
+	    ELSIF #io_Status.Fault THEN
+	        #stat_FeedState := 5;  // LỖI GẠT TAY TRONG MẺ (Local Fault)
+	        
+	    // 2. Chế độ vận hành tại chỗ (Local Mode)
+	    ELSIF #i_HW_LocalMode THEN
+	        #stat_FeedState := 6;  // ĐIỀU KHIỂN TẠI CHỖ
+	        
+	    // 3. Nhóm cảnh báo lưu lượng động
+	    ELSIF #io_Status.Alarm_Empty THEN
+	        #stat_FeedState := 7;  // CẢNH BÁO HẾT LIỆU
+	    ELSIF #io_Status.Alarm_DevHigh THEN
+	        #stat_FeedState := 8;  // CẢNH BÁO LỆCH CAO
+	    ELSIF #io_Status.Alarm_DevLow THEN
+	        #stat_FeedState := 9;  // CẢNH BÁO LỆCH THẤP
+	        
+	    // 4. Nhóm trạng thái hoạt động bình thường
 	    ELSIF #io_Status.Done THEN
-	        #stat_FeedState := #STATE_DONE;
+	        #stat_FeedState := 10; // HOÀN THÀNH
+	    ELSIF #io_Status.Dribble_Active THEN
+	        #stat_FeedState := 11; // CHẠY NHỎ GIỌT
 	    ELSIF #io_Status.Running THEN
 	        IF #i_Cmd.AutoMode THEN
-	            #stat_FeedState := #STATE_RUNNING;
+	            #stat_FeedState := 12; // ĐANG CHẠY (TỰ ĐỘNG)
 	        ELSE
-	            #stat_FeedState := #STATE_MANUAL; 
+	            #stat_FeedState := 13; // ĐANG CHẠY (BẰNG TAY)
 	        END_IF;
+	        
+	    // 5. Trạng thái Sẵn sàng / Rảnh
 	    ELSE
-	        #stat_FeedState := #STATE_IDLE;
+	        #stat_FeedState := 0;  // SẴN SÀNG
 	    END_IF;
 	END_REGION
 	
@@ -329,6 +381,8 @@ BEGIN
 	    #io_Status.FaultWord.%X4 := #temp_Fault_LocalInBatch; // Lỗi gạt Local khi chạy mẻ 
 	    #io_Status.FaultWord.%X5 := #io_Status.Alarm_DevHigh;
 	    #io_Status.FaultWord.%X6 := #io_Status.Alarm_DevLow;
+	    #io_Status.FaultWord.%X7 := #io_Status.Alarm_Empty;
 	END_REGION
+	
 END_FUNCTION_BLOCK
 

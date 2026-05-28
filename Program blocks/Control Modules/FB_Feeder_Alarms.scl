@@ -1,4 +1,4 @@
-﻿FUNCTION_BLOCK "FB_Feeder_Alarms"
+FUNCTION_BLOCK "FB_Feeder_Alarms"
 { S7_Optimized_Access := 'TRUE' }
 VERSION : 1.0
    VAR_INPUT 
@@ -9,11 +9,17 @@ VERSION : 1.0
       i_Simulation : Bool; // Chế độ mô phỏng
       i_LocalMode : Bool; // Chế độ tại chỗ (Local)
       i_CycleTime_sec : Real; // Chu kỳ vòng quét (s)
+      i_Speed_Pct : Real; // Tốc độ phản hồi thực tế (%)
+      i_Fault_Encoder : Bool; // Cờ báo lỗi Encoder
+      i_Reset : Bool; // Lệnh Reset lỗi
+      i_Actual_Weight : Real; // Khối lượng thực tế hiện tại (kg)
+      i_LoadcellCapacity : Real; // Tải trọng tối đa của Loadcell (kg)
    END_VAR
 
    VAR_OUTPUT 
       o_Alarm_DevHigh : Bool; // Cảnh báo sai lệch CAO
       o_Alarm_DevLow : Bool; // Cảnh báo sai lệch THẤP
+      o_Alarm_Empty : Bool; // Cảnh báo hết liệu
    END_VAR
 
    VAR_IN_OUT 
@@ -23,6 +29,7 @@ VERSION : 1.0
    VAR 
       stat_DevHigh_Timer : Real; // Bộ đếm thời gian trễ cảnh báo cao
       stat_DevLow_Timer : Real; // Bộ đếm thời gian trễ cảnh báo thấp
+      stat_Empty_Timer : Real; // Bộ đếm thời gian trễ cảnh báo hết liệu (Starvation)
    END_VAR
 
    VAR_TEMP 
@@ -31,38 +38,73 @@ VERSION : 1.0
 
 
 BEGIN
-	// Chỉ kiểm tra khi đang chạy Auto VÀ SP > 0 VÀ không phải Simulation VÀ đang ở REMOTE (FALSE)
-	IF #i_Running AND #i_AutoMode AND (#i_Setpoint_Flow > 0.0) AND NOT #i_Simulation AND NOT #i_LocalMode THEN
-	    // Tính % lệch: (Actual - SP) / SP * 100
-	    #temp_Deviation_Pct := ((#i_Actual_FlowRate - #i_Setpoint_Flow) / #i_Setpoint_Flow) * 100.0;
+	// Chỉ kiểm tra khi đang ở chế độ Auto VÀ SP > 0 VÀ đang ở REMOTE (LocalMode = FALSE) (Cho phép cảnh báo chạy trong cả chế độ Simu)
+	IF #i_AutoMode AND (#i_Setpoint_Flow > 0.0) AND NOT #i_LocalMode THEN
 	    
-	    // --- HIGH DEVIATION (Lệch cao) --- 
-	    IF #temp_Deviation_Pct > #io_Config.DevAlarm_Pct THEN
-	        #stat_DevHigh_Timer := #stat_DevHigh_Timer + #i_CycleTime_sec;
-	        IF #stat_DevHigh_Timer >= #io_Config.DevAlarm_Delay_sec THEN
-	            #o_Alarm_DevHigh := TRUE;
+	    // Chỉ cập nhật trạng thái lỗi khi cân ĐANG CHẠY thực tế
+	    IF #i_Running THEN
+	        // Tính % lệch: (Actual - SP) / SP * 100
+	        #temp_Deviation_Pct := ((#i_Actual_FlowRate - #i_Setpoint_Flow) / #i_Setpoint_Flow) * 100.0;
+	        
+	        // --- HIGH DEVIATION (Lệch cao) --- 
+	        IF #temp_Deviation_Pct > #io_Config.DevAlarm_Pct THEN
+	            #stat_DevHigh_Timer := #stat_DevHigh_Timer + #i_CycleTime_sec;
+	            IF #stat_DevHigh_Timer >= #io_Config.DevAlarm_Delay_sec THEN
+	                #o_Alarm_DevHigh := TRUE;
+	            END_IF;
+	        ELSE
+	            #stat_DevHigh_Timer := 0.0;
+	            #o_Alarm_DevHigh := FALSE;
+	        END_IF;
+	        
+	        // --- LOW DEVIATION (Lệch thấp) ---
+	        IF (- #temp_Deviation_Pct) > #io_Config.DevAlarm_Pct THEN
+	            #stat_DevLow_Timer := #stat_DevLow_Timer + #i_CycleTime_sec;
+	            IF #stat_DevLow_Timer >= #io_Config.DevAlarm_Delay_sec THEN
+	                #o_Alarm_DevLow := TRUE;
+	            END_IF;
+	        ELSE
+	            #stat_DevLow_Timer := 0.0;
+	            #o_Alarm_DevLow := FALSE;
+	        END_IF;
+	        
+	        // --- STARVATION ALARM (Hết liệu: Khối lượng < 10% Tải trọng Loadcell khi đang chạy) ---
+	        IF (#i_Actual_Weight < (#i_LoadcellCapacity * 0.10)) 
+	           AND (#i_LoadcellCapacity > 0.0) 
+	        THEN
+	            #stat_Empty_Timer := #stat_Empty_Timer + #i_CycleTime_sec;
+	            IF #stat_Empty_Timer >= 5.0 THEN
+	                #o_Alarm_Empty := TRUE;
+	            END_IF;
+	        ELSE
+	            #stat_Empty_Timer := 0.0;
+	            // Tự động giải trừ khi khối lượng thực tế đã phục hồi trên 10% Loadcell
+	            IF #i_Actual_Weight >= (#i_LoadcellCapacity * 0.10) THEN
+	                #o_Alarm_Empty := FALSE;
+	            END_IF;
 	        END_IF;
 	    ELSE
+	        // Khi cân dừng chạy (do Pause), chúng ta GIỮ NGUYÊN trạng thái Alarm_Empty đã có
+	        // để vận hành viên biết cân nào bị hết liệu.
 	        #stat_DevHigh_Timer := 0.0;
-	        #o_Alarm_DevHigh := FALSE;
-	    END_IF;
-	    
-	    // --- LOW DEVIATION (Lệch thấp) ---
-	    IF (- #temp_Deviation_Pct) > #io_Config.DevAlarm_Pct THEN
-	        #stat_DevLow_Timer := #stat_DevLow_Timer + #i_CycleTime_sec;
-	        IF #stat_DevLow_Timer >= #io_Config.DevAlarm_Delay_sec THEN
-	            #o_Alarm_DevLow := TRUE;
-	        END_IF;
-	    ELSE
 	        #stat_DevLow_Timer := 0.0;
+	        #stat_Empty_Timer := 0.0;
+	        #o_Alarm_DevHigh := FALSE;
 	        #o_Alarm_DevLow := FALSE;
+	        
+	        // Chỉ giải trừ cảnh báo hết liệu khi nhấn Reset từ HMI
+	        IF #i_Reset THEN
+	            #o_Alarm_Empty := FALSE;
+	        END_IF;
 	    END_IF;
 	ELSE
-	    // Reset alarm khi không chạy Auto
+	    // Reset tất cả cảnh báo khi thoát khỏi AutoMode hoặc Setpoint = 0
 	    #stat_DevHigh_Timer := 0.0;
 	    #stat_DevLow_Timer := 0.0;
+	    #stat_Empty_Timer := 0.0;
 	    #o_Alarm_DevHigh := FALSE;
 	    #o_Alarm_DevLow := FALSE;
+	    #o_Alarm_Empty := FALSE;
 	END_IF;
 
 END_FUNCTION_BLOCK

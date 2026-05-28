@@ -9,13 +9,47 @@ NON_RETAIN
 PID_Compact
 
 BEGIN
+   sb_EnCyclEstimation := TRUE;
+   sb_EnCyclMonitoring := TRUE;
+   sb_RunModeByStartup := TRUE;
    sby_EsData_1 := 16#01;
+   sby_EsData_2 := 16#00;
    si_Unit := 1;
    si_Type := 9;
+   sBackUp.r_Gain := 1.0;
+   sBackUp.r_Ti := 20.0;
+   sBackUp.r_Td := 0.0;
+   sBackUp.r_A := 0.0;
+   sBackUp.r_B := 0.0;
+   sBackUp.r_C := 0.0;
+   sBackUp.r_Cycle := 1.0;
+   sPid_Calc.r_Cycle := 0.1000601;
+   sPid_Calc.i_CtrlTypeSUT := 0;
+   sPid_Calc.i_CtrlTypeTIR := 0;
+   sPid_Cmpt.r_Sp_Hlm := 3.402822E+38;
+   sPid_Cmpt.r_Sp_Llm := -3.402822E+38;
+   sPid_Cmpt.r_Pv_Norm_IN_1 := 0.0;
+   sPid_Cmpt.r_Pv_Norm_IN_2 := 27648.0;
+   sPid_Cmpt.r_Pv_Norm_OUT_1 := 0.0;
+   sPid_Cmpt.r_Pv_Norm_OUT_2 := 100.0;
+   sPid_Cmpt.r_Lmn_Hlm := 100.0;
+   sPid_Cmpt.r_Lmn_Llm := 0.0;
    sPid_Cmpt.b_Input_PER_On := FALSE;
+   sPid_Cmpt.b_InvCtrl := FALSE;
+   sPid_Cmpt.r_Lmn_Pwm_PPTm := 0.0;
+   sPid_Cmpt.r_Lmn_Pwm_PBTm := 0.0;
    sPid_Cmpt.r_Pv_Hlm := 10000.0;
+   sPid_Cmpt.r_Pv_Llm := -10.0;
    sPid_Cmpt.r_Pv_HWrn := 10000.0;
    sPid_Cmpt.r_Pv_LWrn := 0.0;
+   sRet.i_Mode := 2;
+   sRet.r_Ctrl_Gain := 0.02350082;
+   sRet.r_Ctrl_Ti := 1.791085;
+   sRet.r_Ctrl_Td := 0.449815;
+   sRet.r_Ctrl_A := 0.1;
+   sRet.r_Ctrl_B := 0.2757905;
+   sRet.r_Ctrl_C := 0.0;
+   sRet.r_Ctrl_Cycle := 0.09999959;
 
 END_DATA_BLOCK
 

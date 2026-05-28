@@ -4,6 +4,7 @@
 const DB_CONNECTION_STRING = "Driver={ODBC Driver 17 for SQL Server};Server=.\\WINCC;Database=BatchDB;Trusted_Connection=yes;TrustServerCertificate=yes;";
 const EXPORT_FOLDER = "D:/Installer/";
 const ROWS_PER_PAGE = 20; // Số dòng hiển thị trên một trang HMI
+const TAG_REPORT_URL = "URL"; // Tên Internal Tag HMI liên kết trực tiếp với thuộc tính URL của Web Control
 
 // Tên các Tag kiểm soát quá trình ghi Batch Log tự động
 const TAG_BATCHLOG_WRITE_INDEX = "DB_BatchLog_WriteIndex";
@@ -45,6 +46,18 @@ const TAG_ARR_DURATION = "Duration";
 const TAG_ARR_TIME = "Time";
 const TAG_ARR_VISIBLE = "Visible";
 
+// Các tag mới thêm cho giao diện chi tiết (Master-Detail)
+const TAG_ARR_ERROR_COUNT = "ErrorCount"; // Mảng Array[0..19] để hiển thị số lượng lỗi của 20 dòng trên bảng chính
+
+// Các tag đơn/mảng nhỏ đại diện cho mẻ cân được Click chọn để hiển thị chi tiết ở nửa dưới màn hình
+const TAG_SEL_BATCH_ID = "Selected_BatchID";
+const TAG_SEL_BATCH_NUMBER = "Selected_BatchNumber";
+const TAG_SEL_ERROR_COUNT = "Selected_ErrorCount";
+const TAG_SEL_FEEDER_TARGET = "Selected_Feeder_Target"; // Mảng Array[1..7] of Real của mẻ đang chọn
+const TAG_SEL_FEEDER_ACTUAL = "Selected_Feeder_Actual"; // Mảng Array[1..7] of Real của mẻ đang chọn
+const TAG_SEL_FEEDER_DEV = "Selected_Feeder_Dev"; // Mảng Array[1..7] of Real sai lệch từng cân của mẻ đang chọn
+
+
 export async function LogBatchToSQL() {
     try {
         // 0. Báo hiệu script đã được gọi
@@ -61,6 +74,15 @@ export async function LogBatchToSQL() {
 
         let writeIndex = writeIndexTag.Read();
         let lastProcessedIndex = lastProcessedIndexTag.Read();
+
+        // [FIX LỖI GHI DÒNG RỖNG KHI RESTART RUNTIME]
+        // Nếu lastProcessedIndex = 0, HMI vừa mới khởi động lại và Tag nội bộ chưa đồng bộ với PLC.
+        // Ta đồng bộ LastProcessedIndex bằng WriteIndex thực tế và thoát, tránh ghi dữ liệu rỗng vào SQL Server.
+        if (lastProcessedIndex === 0) {
+            HMIRuntime.Trace("LogBatchToSQL: HMI Startup detected. Synchronizing Index to " + writeIndex + " without inserting empty data.");
+            lastProcessedIndexTag.Write(writeIndex);
+            return;
+        }
 
         // Kiểm tra nếu có mẻ thực sự mới (PLC dùng 1-100)
         if (writeIndex !== lastProcessedIndex) {
@@ -93,6 +115,27 @@ export async function LogBatchToSQL() {
             for (let i = 0; i < 7; i++) {
                 record.Feeder_Target[i] = readTag(`Feeder_Target[${i}]`) || 0;
                 record.Feeder_Actual[i] = readTag(`Feeder_Actual[${i}]`) || 0;
+            }
+
+            // Áp dụng Dynamic Auto-Scaling cho Tổng mục tiêu và Tổng thực tế mẻ lịch sử (Tấn sang Kg)
+            let sumFeederActuals = 0;
+            for (let i = 0; i < 7; i++) {
+                sumFeederActuals += record.Feeder_Actual[i];
+            }
+
+            let logScaleFactor = 1.0;
+            if (sumFeederActuals > 0 && record.Actual_Weight > 0 && record.Actual_Weight < (sumFeederActuals / 100.0)) {
+                logScaleFactor = 1000.0;
+            } else if (sumFeederActuals === 0) {
+                if (record.Target_Weight > 0 && record.Target_Weight < 50) {
+                    logScaleFactor = 1000.0;
+                }
+            }
+
+            if (logScaleFactor !== 1.0) {
+                record.Target_Weight = record.Target_Weight * logScaleFactor;
+                record.Actual_Weight = record.Actual_Weight * logScaleFactor;
+                HMIRuntime.Trace("LogBatchToSQL scaling applied: x" + logScaleFactor + ". New Target=" + record.Target_Weight + ", Actual=" + record.Actual_Weight);
             }
 
             // Timestamp Fallback
@@ -215,17 +258,30 @@ function mapBatchHistoryRows(dataRows) {
     let rows = [];
     for (let k in dataRows) {
         let r = dataRows[k];
+
+        // Đọc trường không phân biệt hoa thường
+        let targetWt = r.Target_Weight !== undefined ? r.Target_Weight : (r.TARGET_WEIGHT !== undefined ? r.TARGET_WEIGHT : (r.target_weight !== undefined ? r.target_weight : 0));
+        let actualWt = r.Actual_Weight !== undefined ? r.Actual_Weight : (r.ACTUAL_WEIGHT !== undefined ? r.ACTUAL_WEIGHT : (r.actual_weight !== undefined ? r.actual_weight : 0));
+        let errorCount = r.Error_Count !== undefined ? r.Error_Count : (r.ERROR_COUNT !== undefined ? r.ERROR_COUNT : (r.error_count !== undefined ? r.error_count : 0));
+        let durationSec = r.Duration_sec !== undefined ? r.Duration_sec : (r.DURATION_SEC !== undefined ? r.DURATION_SEC : (r.duration_sec !== undefined ? r.duration_sec : 0));
+        let timestampVal = r.Timestamp_DTL !== undefined ? r.Timestamp_DTL : (r.TIMESTAMP_DTL !== undefined ? r.TIMESTAMP_DTL : (r.timestamp_dtl !== undefined ? r.timestamp_dtl : null));
+        let batchIdVal = r.BatchID !== undefined ? r.BatchID : (r.BATCHID !== undefined ? r.BATCHID : (r.batchid !== undefined ? r.batchid : ""));
+        let batchNumVal = r.BatchNumber !== undefined ? r.BatchNumber : (r.BATCHNUMBER !== undefined ? r.BATCHNUMBER : (r.batchnumber !== undefined ? r.batchnumber : 0));
+
+        // Tính toán sai lệch và làm tròn đến 2 chữ số thập phân
+        let devVal = Math.round((actualWt - targetWt) * 100) / 100;
+
         rows.push({
-            Id: r.Id,
-            BatchID: r.BatchID,
-            BatchNumber: r.BatchNumber,
-            Target: r.Target_Weight,
-            Actual: r.Actual_Weight,
-            Dev: r.Deviation_Pct,
+            Id: r.Id !== undefined ? r.Id : (r.ID !== undefined ? r.ID : (r.id !== undefined ? r.id : 0)),
+            BatchID: batchIdVal,
+            BatchNumber: batchNumVal,
+            Target: targetWt,
+            Actual: actualWt,
+            Dev: devVal, // Sai lệch kg = Thực tế - Đặt (được làm tròn 2 số thập phân)
             Status: r.BatchStatus !== undefined && r.BatchStatus !== null ? Number(r.BatchStatus) : 0,
-            ErrorCount: r.Error_Count,
-            Duration: formatDuration(r.Duration_sec),
-            Time: r.TimeStr || formatTimestamp(r.Timestamp_DTL),
+            ErrorCount: errorCount,
+            Duration: formatDuration(durationSec),
+            Time: r.TimeStr || formatTimestamp(timestampVal),
             F1_Target: r.F1_Target, F1_Actual: r.F1_Actual,
             F2_Target: r.F2_Target, F2_Actual: r.F2_Actual,
             F3_Target: r.F3_Target, F3_Actual: r.F3_Actual,
@@ -308,6 +364,8 @@ function getActiveScreen() {
     return null;
 }
 
+
+
 // Helper để lưu và đọc trạng thái từ screen.DataSet (tránh mất state khi click nút độc lập)
 function getScreenState(screen) {
     if (!screen || !screen.DataSet) return null;
@@ -364,6 +422,9 @@ function writeToFaceplate(screen, fpIndex, data) {
         Tags(TAG_ARR_DURATION + "[" + i + "]").Write(String(data.Duration || "00:00:00"));
         Tags(TAG_ARR_TIME + "[" + i + "]").Write(String(data.Time || ""));
         Tags(TAG_ARR_VISIBLE + "[" + i + "]").Write(true);
+
+        // Ghi dữ liệu chi tiết
+        Tags(TAG_ARR_ERROR_COUNT + "[" + i + "]").Write(Number(data.ErrorCount || 0));
     } catch (e) {
         HMIRuntime.Trace("writeRow" + i + ": " + e.message);
     }
@@ -382,8 +443,89 @@ function clearFaceplate(screen, fpIndex) {
         Tags(TAG_ARR_DURATION + "[" + i + "]").Write("00:00:00");
         Tags(TAG_ARR_TIME + "[" + i + "]").Write("");
         Tags(TAG_ARR_VISIBLE + "[" + i + "]").Write(false);
+
+        Tags(TAG_ARR_ERROR_COUNT + "[" + i + "]").Write(0);
     } catch (e) { }
 }
+
+// 8.5. CHỌN 1 MÈ CÂN ĐỂ XEM CHI TIẾT (Master-Detail)
+// Vận hành viên click chọn dòng nào (0-19) trên bảng thì gọi hàm này để cập nhật 7 cân của mẻ đó
+export async function SelectBatchRecord(screen, fpIndex) {
+    try {
+        let s = screen || _screenRef || getActiveScreen();
+        let state = getScreenState(s);
+        let curPage = state ? state.currentPage : currentPage;
+        let dataList = state ? state.cachedData : cachedData;
+
+        if (!dataList || dataList.length === 0) {
+            HMIRuntime.Trace("SelectBatchRecord: Không có dữ liệu trong cache.");
+            return;
+        }
+
+        let startIdx = curPage * rowsPerPage;
+        let dataIdx = startIdx + fpIndex;
+
+        if (dataIdx >= dataList.length) {
+            HMIRuntime.Trace("SelectBatchRecord: Vượt quá chỉ số dòng dữ liệu.");
+            return;
+        }
+
+        let r = dataList[dataIdx];
+
+        // Ghi thông tin cơ bản mẻ đang chọn
+        Tags(TAG_SEL_BATCH_ID).Write(String(r.BatchID || ""));
+        Tags(TAG_SEL_BATCH_NUMBER).Write(Number(r.BatchNumber || 0));
+        Tags(TAG_SEL_ERROR_COUNT).Write(Number(r.ErrorCount || 0));
+
+        // Ghi thông số Target, Actual và Dev của 7 cân vào các mảng Selected_Feeder_Target/Actual/Dev [1..7]
+        let f1_T = Number(r.F1_Target || 0.0);
+        let f1_A = Number(r.F1_Actual || 0.0);
+        Tags(TAG_SEL_FEEDER_TARGET + "[1]").Write(f1_T);
+        Tags(TAG_SEL_FEEDER_ACTUAL + "[1]").Write(f1_A);
+        Tags(TAG_SEL_FEEDER_DEV + "[1]").Write(f1_A - f1_T);
+
+        let f2_T = Number(r.F2_Target || 0.0);
+        let f2_A = Number(r.F2_Actual || 0.0);
+        Tags(TAG_SEL_FEEDER_TARGET + "[2]").Write(f2_T);
+        Tags(TAG_SEL_FEEDER_ACTUAL + "[2]").Write(f2_A);
+        Tags(TAG_SEL_FEEDER_DEV + "[2]").Write(f2_A - f2_T);
+
+        let f3_T = Number(r.F3_Target || 0.0);
+        let f3_A = Number(r.F3_Actual || 0.0);
+        Tags(TAG_SEL_FEEDER_TARGET + "[3]").Write(f3_T);
+        Tags(TAG_SEL_FEEDER_ACTUAL + "[3]").Write(f3_A);
+        Tags(TAG_SEL_FEEDER_DEV + "[3]").Write(f3_A - f3_T);
+
+        let f4_T = Number(r.F4_Target || 0.0);
+        let f4_A = Number(r.F4_Actual || 0.0);
+        Tags(TAG_SEL_FEEDER_TARGET + "[4]").Write(f4_T);
+        Tags(TAG_SEL_FEEDER_ACTUAL + "[4]").Write(f4_A);
+        Tags(TAG_SEL_FEEDER_DEV + "[4]").Write(f4_A - f4_T);
+
+        let f5_T = Number(r.F5_Target || 0.0);
+        let f5_A = Number(r.F5_Actual || 0.0);
+        Tags(TAG_SEL_FEEDER_TARGET + "[5]").Write(f5_T);
+        Tags(TAG_SEL_FEEDER_ACTUAL + "[5]").Write(f5_A);
+        Tags(TAG_SEL_FEEDER_DEV + "[5]").Write(f5_A - f5_T);
+
+        let f6_T = Number(r.F6_Target || 0.0);
+        let f6_A = Number(r.F6_Actual || 0.0);
+        Tags(TAG_SEL_FEEDER_TARGET + "[6]").Write(f6_T);
+        Tags(TAG_SEL_FEEDER_ACTUAL + "[6]").Write(f6_A);
+        Tags(TAG_SEL_FEEDER_DEV + "[6]").Write(f6_A - f6_T);
+
+        let f7_T = Number(r.F7_Target || 0.0);
+        let f7_A = Number(r.F7_Actual || 0.0);
+        Tags(TAG_SEL_FEEDER_TARGET + "[7]").Write(f7_T);
+        Tags(TAG_SEL_FEEDER_ACTUAL + "[7]").Write(f7_A);
+        Tags(TAG_SEL_FEEDER_DEV + "[7]").Write(f7_A - f7_T);
+
+        HMIRuntime.Trace("SelectBatchRecord Success: Mapped details for Batch " + r.BatchID);
+    } catch (e) {
+        HMIRuntime.Trace("SelectBatchRecord Error: " + e.message);
+    }
+}
+
 
 // 9. HIỂN THỊ 1 TRANG DỮ LIỆU (không nhấp nháy)
 function displayPage(screen) {
@@ -403,7 +545,8 @@ function displayPage(screen) {
         let dataIdx = startIdx + i;
         if (dataIdx < dataList.length) {
             let row = dataList[dataIdx];
-            row.RowNumber = dataIdx + 1;
+            // Ưu tiên hiển thị số thứ tự tự tăng từ Database (Id), nếu không có (hoặc bằng 0) thì tự động lấy số thứ tự dòng thực tế (dataIdx + 1)
+            row.RowNumber = (row.Id !== undefined && row.Id !== null && row.Id !== 0) ? row.Id : (dataIdx + 1);
             writeToFaceplate(s, i, row);
             filledRows++;
         }
@@ -425,6 +568,9 @@ function displayPage(screen) {
     } catch (e) { }
 
     HMIRuntime.Trace("Displaying page " + (curPage + 1) + "/" + totalPages + " (" + dataList.length + " total)");
+
+    // Tự động load chi tiết mẻ đầu tiên (mẻ mới nhất) của trang hiện tại lên giao diện chi tiết
+    SelectBatchRecord(s, 0);
 }
 
 // 10. CÁC HÀM ĐIỀU KHIỂN - GỌI TỪ HMI
@@ -567,6 +713,52 @@ export function GoToPage(pageNum, screen) {
     }
 }
 
+// 10.5 LỌC HIỂN THỊ TRÊN HÀNG BẢNG CHÍNH THEO NĂM/THÁNG (Đọc từ tag Filter_Year và Filter_Month)
+// Gắn vào Sự kiện (Events) -> On Click của nút "Lọc" trên HMI
+export async function FilterHistoryByYearMonthOnScreen(screen) {
+    HMIRuntime.Trace("=== FilterHistoryByYearMonthOnScreen START ===");
+    if (screen) _screenRef = screen;
+    let s = screen || _screenRef || getActiveScreen();
+    if (!s) { HMIRuntime.Trace("Filter Error: No screen ref"); return; }
+
+    let year = 0;
+    let month = 0;
+
+    try {
+        let yTag = Tags(TAG_FILTER_YEAR);
+        if (yTag) year = Number(yTag.Read()) || 0;
+
+        let mTag = Tags(TAG_FILTER_MONTH);
+        if (mTag) month = Number(mTag.Read()) || 0;
+    } catch (e) {
+        HMIRuntime.Trace("Filter Read Tag Error: " + e.message);
+    }
+
+    HMIRuntime.Trace("Filtering HMI Grid for Year=" + year + ", Month=" + month);
+
+    if (year === 0 && month === 0) {
+        HMIRuntime.Trace("Filter: Không chọn năm/tháng, làm mới hiển thị tất cả.");
+        await RefreshHistoryOnScreen(s);
+        return;
+    }
+
+    StopHistoryAutoRefresh();
+    // Tận dụng hàm GetDetailedHistoryByFilter đã có sẵn để lấy dữ liệu từ SQL
+    let data = await GetDetailedHistoryByFilter(year, month);
+
+    let state = getScreenState(s);
+    if (state) {
+        state.cachedData = data;
+        state.currentPage = 0;
+        setScreenState(s, state);
+    } else {
+        cachedData = data;
+        currentPage = 0;
+    }
+
+    displayPage(s);
+}
+
 // 11. LOAD DỮ LIỆU KHI MỞ MÀN HÌNH (1 lần, không auto-refresh)
 export function LoadHistoryOnOpen(screen) {
     if (screen) _screenRef = screen;
@@ -684,7 +876,7 @@ function buildDetailedHistoryHTML(dataList, titleText) {
         <th class="header-main" rowspan="2">Số Ca (Batch)</th>
         <th class="header-main" rowspan="2">Tổng M.Tiêu (kg)</th>
         <th class="header-main" rowspan="2">Tổng T.Tế (kg)</th>
-        <th class="header-main" rowspan="2">Sai Lệch (%)</th>
+        <th class="header-main" rowspan="2">Sai Lệch (kg)</th>
         <th class="header-main" rowspan="2">Trạng Thái</th>
         <th class="header-main" rowspan="2">Lỗi (lần)</th>
         <th class="header-main" rowspan="2">Thời Gian Chạy</th>
@@ -737,7 +929,7 @@ function buildDetailedHistoryHTML(dataList, titleText) {
 
         let targetWeight = (r.Target !== undefined && r.Target !== null) ? Number(r.Target).toFixed(1) : "0.0";
         let actualWeight = (r.Actual !== undefined && r.Actual !== null) ? Number(r.Actual).toFixed(1) : "0.0";
-        let devPercent = (r.Dev !== undefined && r.Dev !== null) ? Number(r.Dev).toFixed(2) : "0.00";
+        let devKg = (r.Dev !== undefined && r.Dev !== null) ? Number(r.Dev).toFixed(1) : "0.0";
         let errorVal = Number(r.ErrorCount) || 0;
 
         let f1_T = (r.F1_Target !== undefined && r.F1_Target !== null) ? Number(r.F1_Target).toFixed(1) : "0.0";
@@ -768,7 +960,7 @@ function buildDetailedHistoryHTML(dataList, titleText) {
         <td class="cell-center">${r.BatchNumber || 0}</td>
         <td class="cell-num">${targetWeight}</td>
         <td class="cell-num">${actualWeight}</td>
-        <td class="cell-center" style="font-weight: bold; color: ${Math.abs(Number(r.Dev)) > 5 ? '#C00000' : '#000000'};">${devPercent}</td>
+        <td class="cell-center" style="font-weight: bold; color: ${Math.abs(Number(r.Dev)) > 5.0 ? '#C00000' : '#000000'};">${devKg}</td>
         <td class="cell-center" style="font-weight: bold; font-size: 11px; color: ${statusVal === 1 ? '#00B050' : (statusVal === 2 || statusVal === 3 ? '#C00000' : '#000000')};">${statusText}</td>
         <td class="cell-center" style="color: ${errorVal > 0 ? '#C00000' : '#000000'};">${errorVal > 0 ? errorVal : '-'}</td>
         <td class="cell-center">${r.Duration || "00:00:00"}</td>
@@ -806,17 +998,80 @@ function buildDetailedHistoryHTML(dataList, titleText) {
     return htmlExcel;
 }
 
+// ======================================================================
+// HÀM HỖ TRỢ: THÔNG BÁO VÀ TỰ ĐỘNG MỞ FILE EXCEL TRÊN HMI
+// ======================================================================
+export async function OpenFileAndShowStatus(screen, filePath) {
+    try {
+        let s = screen || _screenRef || getActiveScreen();
+        let winPath = filePath.replace(/\//g, "\\"); // Đổi dấu / sang \ theo chuẩn Windows
+        let fileName = winPath.substring(winPath.lastIndexOf("\\") + 1);
+
+        // 1. Đọc tên máy chủ HMI hiện tại để dựng URL động, hoạt động trên mọi PC/Sim
+        let hostName = "localhost";
+        try {
+            let tag = Tags("@LocalMachineName");
+            if (tag) {
+                hostName = tag.Read() || "localhost";
+            }
+        } catch (e) {
+            HMIRuntime.Trace("Lấy LocalMachineName thất bại: " + e.message);
+        }
+
+        // Tạo URL chuẩn HTTPS truy cập qua IIS Virtual Directory (BaoCao) trỏ đến D:\Installer
+        let webUrl = "https://" + hostName + "/BaoCao/" + fileName;
+        HMIRuntime.Trace("Đường dẫn Web URL báo cáo (Virtual Directory): " + webUrl);
+
+        if (s) {
+            // 2. Tìm ô Text Box để hiển thị thông báo thành công
+            let txtStatus = s.FindItem("txtExportStatus") || s.FindItem("txtNotify");
+            if (txtStatus) {
+                txtStatus.Text = "Xuất báo cáo thành công! Đang hiển thị...";
+                txtStatus.Visible = true;
+                
+                // Tự động ẩn thông báo sau 6 giây
+                HMIRuntime.Timers.SetTimeout(() => {
+                    txtStatus.Visible = false;
+                }, 6000);
+            }
+
+            // 3. Tìm đối tượng Web Control trực tiếp trên màn hình hiện tại (để tương thích ngược)
+            let htmlViewer = s.FindItem("htmlViewer") || s.FindItem("WebControl_1") || s.FindItem("reportViewer");
+            if (htmlViewer) {
+                htmlViewer.URL = webUrl;
+                HMIRuntime.Trace("Đã gán URL trực tiếp cho Web Control thành công!");
+            }
+        }
+
+        // 4. GIẢI PHÁP ĐỘT PHÁ & LIÊN KẾT TAG ĐỘNG: Ghi URL vào Internal Tag của HMI
+        // Nhờ mối liên kết giữa Tag này và thuộc tính URL của Web Control trong TIA Portal,
+        // Web Control sẽ tự động cập nhật báo cáo mới ở bất cứ màn hình nào, không sợ sai phân cấp!
+        try {
+            let tagUrl = Tags(TAG_REPORT_URL);
+            if (tagUrl) {
+                tagUrl.Write(webUrl);
+                HMIRuntime.Trace("Đã ghi Web URL vào Internal Tag '" + TAG_REPORT_URL + "' thành công!");
+            }
+        } catch (tagErr) {
+            HMIRuntime.Trace("Lỗi khi ghi vào Tag " + TAG_REPORT_URL + ": " + tagErr.message);
+        }
+
+    } catch (err) {
+        HMIRuntime.Trace("Lỗi khi hiển thị báo cáo: " + err.message);
+    }
+}
+
 // 13. XUẤT EXCEL CHI TIẾT SẢN XUẤT THEO CA CHẠY (TỪNG CÂN)
 // Gắn hàm này vào Sự kiện (Events) -> On Click của nút "Export Excel" trên HMI
 export async function ExportHistoryToExcel(screen) {
-    HMIRuntime.Trace("=== Bắt đầu xuất Excel Lịch sử Chi tiết ===");
+    HMIRuntime.Trace("=== Bắt đầu xuất báo cáo Lịch sử Chi tiết ===");
     try {
         let s = screen || _screenRef || getActiveScreen();
         let state = getScreenState(s);
         let dataList = state ? state.cachedData : cachedData;
 
         if (!dataList || dataList.length === 0) {
-            HMIRuntime.Trace("Export Excel: Không có dữ liệu để xuất.");
+            HMIRuntime.Trace("Export: Không có dữ liệu để xuất.");
             return;
         }
 
@@ -826,16 +1081,19 @@ export async function ExportHistoryToExcel(screen) {
         let timestampStr = getFormattedTimestamp(true);
 
         // Đường dẫn lưu file trên máy chủ HMI
-        let filePath = EXPORT_FOLDER + "BaoCaoLichSu_ChiTiet_" + timestampStr + ".xls";
+        let filePath = EXPORT_FOLDER + "BaoCaoLichSu_ChiTiet_" + timestampStr + ".html";
 
         // Sử dụng API FileSystem của WinCC Unified để ghi file
         await HMIRuntime.FileSystem.WriteFile(filePath, htmlExcel, "utf8");
 
-        HMIRuntime.Trace("Xuất Excel Lịch sử thành công! Đường dẫn: " + filePath);
+        HMIRuntime.Trace("Xuất báo cáo Lịch sử thành công! Đường dẫn: " + filePath);
+
+        // Gọi hàm tự động thông báo và mở file Excel
+        await OpenFileAndShowStatus(s, filePath);
 
     } catch (e) {
         let errorMsg = e.message || e.Message || String(e);
-        HMIRuntime.Trace("Lỗi xuất Excel Lịch sử: " + errorMsg);
+        HMIRuntime.Trace("Lỗi xuất báo cáo Lịch sử: " + errorMsg);
     }
 }
 
@@ -843,6 +1101,7 @@ export async function ExportHistoryToExcel(screen) {
 export async function ExportDetailedMonthlyToExcel(screen, yearFilter, monthFilter) {
     HMIRuntime.Trace("=== Bắt đầu xuất Chi tiết Lịch sử theo Tháng ===");
     try {
+        let s = screen || _screenRef || getActiveScreen();
         if (!yearFilter || yearFilter === 0) {
             let yTag = Tags(TAG_FILTER_YEAR);
             yearFilter = (yTag && yTag.Read() > 0) ? yTag.Read() : new Date().getFullYear();
@@ -863,10 +1122,13 @@ export async function ExportDetailedMonthlyToExcel(screen, yearFilter, monthFilt
         let htmlExcel = buildDetailedHistoryHTML(data, "BÁO CÁO CHI TIẾT SẢN XUẤT - THÁNG " + monthFilter + "/" + yearFilter);
 
         let ts = getFormattedTimestamp(false);
-        let filePath = EXPORT_FOLDER + "BaoCaoChiTiet_Thang_" + monthFilter + "_" + yearFilter + "_" + ts + ".xls";
+        let filePath = EXPORT_FOLDER + "BaoCaoChiTiet_Thang_" + monthFilter + "_" + yearFilter + "_" + ts + ".html";
 
         await HMIRuntime.FileSystem.WriteFile(filePath, htmlExcel, "utf8");
-        HMIRuntime.Trace("Xuất Excel chi tiết tháng thành công! Đường dẫn: " + filePath);
+        HMIRuntime.Trace("Xuất báo cáo chi tiết tháng thành công! Đường dẫn: " + filePath);
+
+        // Gọi hàm tự động thông báo và mở file Excel
+        await OpenFileAndShowStatus(s, filePath);
     } catch (e) {
         HMIRuntime.Trace("Lỗi xuất chi tiết tháng: " + (e.message || String(e)));
     }
@@ -876,6 +1138,7 @@ export async function ExportDetailedMonthlyToExcel(screen, yearFilter, monthFilt
 export async function ExportDetailedYearlyToExcel(screen, yearFilter) {
     HMIRuntime.Trace("=== Bắt đầu xuất Chi tiết Lịch sử theo Năm ===");
     try {
+        let s = screen || _screenRef || getActiveScreen();
         if (!yearFilter || yearFilter === 0) {
             let yTag = Tags(TAG_FILTER_YEAR);
             yearFilter = (yTag && yTag.Read() > 0) ? yTag.Read() : new Date().getFullYear();
@@ -892,10 +1155,13 @@ export async function ExportDetailedYearlyToExcel(screen, yearFilter) {
         let htmlExcel = buildDetailedHistoryHTML(data, "BÁO CÁO CHI TIẾT SẢN XUẤT - NĂM " + yearFilter);
 
         let ts = getFormattedTimestamp(false);
-        let filePath = EXPORT_FOLDER + "BaoCaoChiTiet_Nam_" + yearFilter + "_" + ts + ".xls";
+        let filePath = EXPORT_FOLDER + "BaoCaoChiTiet_Nam_" + yearFilter + "_" + ts + ".html";
 
         await HMIRuntime.FileSystem.WriteFile(filePath, htmlExcel, "utf8");
-        HMIRuntime.Trace("Xuất Excel chi tiết năm thành công! Đường dẫn: " + filePath);
+        HMIRuntime.Trace("Xuất báo cáo chi tiết năm thành công! Đường dẫn: " + filePath);
+
+        // Gọi hàm tự động thông báo và mở file Excel
+        await OpenFileAndShowStatus(s, filePath);
     } catch (e) {
         HMIRuntime.Trace("Lỗi xuất chi tiết năm: " + (e.message || String(e)));
     }
@@ -943,7 +1209,7 @@ export async function ExportCurrentBatchToExcel(screen) {
             let actual = Number(getTagVal(`${TAG_LIVE_FEEDERS_DETAIL}[${i}].Totalized_Weight`)) || 0;
             sumFeederActuals += actual;
             let isFault = getTagVal(`${TAG_LIVE_FEEDERS_DETAIL}[${i}].Fault`);
-            
+
             if (isFault) {
                 errorVal++;
             }
@@ -983,17 +1249,17 @@ export async function ExportCurrentBatchToExcel(screen) {
                 if (writeIndex >= 1 && writeIndex <= 20) {
                     let recordIndex_PLC = (writeIndex === 1) ? 20 : (writeIndex - 1);
                     let recordIndex_HMI = recordIndex_PLC - 1;
-                    
+
                     let logTagBase = TAG_BATCHLOG_RECORDS_BASE + "[" + recordIndex_HMI + "]";
                     let logBatchIDTag = Tags(logTagBase + ".BatchID");
                     let logBatchNumTag = Tags(logTagBase + ".BatchNumber");
                     let logStatusTag = Tags(logTagBase + ".Status");
-                    
+
                     if (logBatchIDTag && logBatchNumTag && logStatusTag) {
                         let logBatchID = logBatchIDTag.Read() || "";
                         let logBatchNum = logBatchNumTag.Read() || 0;
                         let logStatus = Number(logStatusTag.Read()) || 0;
-                        
+
                         // Nếu bản ghi mới nhất trong log khớp với BatchID và BatchNumber hiện tại
                         if (logBatchID === batchID && logBatchNum === batchNumber) {
                             if (logStatus === 1 || logStatus === 2 || logStatus === 3) {
@@ -1020,7 +1286,7 @@ export async function ExportCurrentBatchToExcel(screen) {
             ErrorCount: errorVal,
             Duration: formattedTime,
             Time: formatTimestamp(new Date()),
-            
+
             F1_Target: fTargets[0], F1_Actual: fActuals[0],
             F2_Target: fTargets[1], F2_Actual: fActuals[1],
             F3_Target: fTargets[2], F3_Actual: fActuals[2],
@@ -1036,14 +1302,18 @@ export async function ExportCurrentBatchToExcel(screen) {
         // 5. Đặt tên file và ghi dữ liệu ra bộ nhớ HMI
         let timestampStr = getFormattedTimestamp(true);
 
-        let filePath = EXPORT_FOLDER + "BaoCao_LIVE_ChiTiet_" + timestampStr + ".xls";
+        let filePath = EXPORT_FOLDER + "BaoCao_LIVE_ChiTiet_" + timestampStr + ".html";
 
         await HMIRuntime.FileSystem.WriteFile(filePath, htmlExcel, "utf8");
         HMIRuntime.Trace("Xuất mẻ LIVE chi tiết thành công! Đường dẫn: " + filePath);
 
+        // Gọi hàm tự động thông báo và mở file Excel
+        let s = screen || _screenRef || getActiveScreen();
+        await OpenFileAndShowStatus(s, filePath);
+
     } catch (e) {
         let errorMsg = e.message || e.Message || String(e);
-        HMIRuntime.Trace("Lỗi xuất Excel Mẻ Hiện Tại chi tiết: " + errorMsg);
+        HMIRuntime.Trace("Lỗi xuất báo cáo Mẻ Hiện Tại chi tiết: " + errorMsg);
     }
 }
 
@@ -1228,10 +1498,14 @@ export async function ExportMonthlyStatsToExcel(screen, yearFilter) {
 </html>`;
 
         let ts2 = getFormattedTimestamp(false);
-        let filePath = EXPORT_FOLDER + "BaoCaoThang_" + yearFilter + "_" + ts2 + ".xls";
+        let filePath = EXPORT_FOLDER + "BaoCaoThang_" + yearFilter + "_" + ts2 + ".html";
 
         await HMIRuntime.FileSystem.WriteFile(filePath, html, "utf8");
         HMIRuntime.Trace("Xuất báo cáo tổng hợp tháng thành công! Đường dẫn: " + filePath);
+
+        // Gọi hàm tự động thông báo và mở file Excel trong trình duyệt
+        let s = screen || _screenRef || getActiveScreen();
+        await OpenFileAndShowStatus(s, filePath);
 
     } catch (e) {
         HMIRuntime.Trace("Lỗi xuất báo cáo tổng hợp tháng: " + (e.message || String(e)));

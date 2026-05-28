@@ -14,8 +14,15 @@ BEGIN
    si_Type := 9;
    sPid_Cmpt.b_Input_PER_On := FALSE;
    sPid_Cmpt.r_Pv_Hlm := 10000.0;
+   sPid_Cmpt.r_Pv_Llm := -10.0;
    sPid_Cmpt.r_Pv_HWrn := 10000.0;
    sPid_Cmpt.r_Pv_LWrn := 0.0;
+   sRet.r_Ctrl_Gain := 0.01736898;
+   sRet.r_Ctrl_Ti := 1.330155;
+   sRet.r_Ctrl_Td := 0.3569926;
+   sRet.r_Ctrl_A := 0.1;
+   sRet.r_Ctrl_B := 0.5290933;
+   sRet.r_Ctrl_Cycle := 0.1000047;
 
 END_DATA_BLOCK
 
